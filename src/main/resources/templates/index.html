@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    ```
+    <title>Fan Control System</title>
+
+    <style>
+
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f4f4f4;
+        }
+
+        h1 {
+            margin-bottom: 5px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+
+        .section {
+            background-color: white;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .add-device-form {
+            display: flex;
+            gap: 10px;
+        }
+
+        .add-device-form input {
+            flex: 1;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 15px;
+            margin-right: 5px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+
+        #devices {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .device {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .device h2 {
+            margin-top: 0;
+        }
+
+        .device p {
+            margin: 8px 0;
+        }
+
+        .status {
+            font-weight: bold;
+        }
+
+        .fan-state {
+            font-weight: bold;
+        }
+
+        .delete-button {
+            margin-top: 20px;
+        }
+
+        .error {
+            color: darkred;
+            margin-top: 10px;
+        }
+
+        .success {
+            color: darkgreen;
+            margin-top: 10px;
+        }
+
+    </style>
+    ```
+
+</head>
+
+<body>
+
+<h1>Fan Control System</h1>
+
+<p class="subtitle">
+    Centralized fan management system
+</p>
+
+<div class="section">
+
+    ```
+    <h2>Add Device</h2>
+
+    <div class="add-device-form">
+
+        <input
+                type="text"
+                id="deviceName"
+                placeholder="Enter device name"
+        >
+
+        <button onclick="addDevice()">
+            Add Device
+        </button>
+
+    </div>
+
+    <p id="message"></p>
+    ```
+
+</div>
+
+<div class="section">
+
+    ```
+    <h2>Devices</h2>
+
+    <button onclick="loadDevices()">
+        Refresh
+    </button>
+
+    <div id="devices">
+        <p>Loading devices...</p>
+    </div>
+    ```
+
+</div>
+
+<script>
+
+    async function loadDevices() {
+
+        try {
+
+            const response = await fetch("/api/devices");
+
+            if (!response.ok) {
+                throw new Error("Failed to load devices.");
+            }
+
+            const devices = await response.json();
+
+            const container = document.getElementById("devices");
+
+            container.innerHTML = "";
+
+            if (devices.length === 0) {
+
+                container.innerHTML = `
+                    <p>No devices registered.</p>
+                `;
+
+                return;
+            }
+
+            for (const device of devices) {
+
+                const deviceElement = document.createElement("div");
+
+                deviceElement.className = "device";
+
+                deviceElement.innerHTML = `
+
+                    <h2>${device.name}</h2>
+
+                    <p>
+                        ID:
+                        ${device.id}
+                    </p>
+
+                    <p>
+                        Status:
+                        <span class="status">
+                            ${device.status}
+                        </span>
+                    </p>
+
+                    <p>
+                        Fan:
+                        <span class="fan-state">
+                            ${device.fanState ? "ON" : "OFF"}
+                        </span>
+                    </p>
+
+                    <p>
+                        Last sensor activation:
+                        ${device.lastSensorActivation ?? "Never"}
+                    </p>
+
+                    <p>
+                        Last communication:
+                        ${device.lastSeen ?? "Never"}
+                    </p>
+
+                    <button onclick="turnFanOn(${device.id})">
+                        Turn On
+                    </button>
+
+                    <button onclick="turnFanOff(${device.id})">
+                        Turn Off
+                    </button>
+
+                    <br>
+
+                    <button
+                        class="delete-button"
+                        onclick="deleteDevice(${device.id})"
+                    >
+                        Delete Device
+                    </button>
+
+                `;
+
+                container.appendChild(deviceElement);
+            }
+
+        } catch (error) {
+
+            showMessage(error.message, true);
+
+        }
+    }
+
+
+    async function addDevice() {
+
+        const input = document.getElementById("deviceName");
+
+        const name = input.value.trim();
+
+        if (name === "") {
+
+            showMessage("Device name cannot be empty.", true);
+
+            return;
+        }
+
+        try {
+
+            const response = await fetch("/api/devices", {
+
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json"
+                },
+
+                body: JSON.stringify({
+                    name: name
+                })
+
+            });
+
+            if (!response.ok) {
+
+                throw new Error("Failed to add device.");
+
+            }
+
+            input.value = "";
+
+            showMessage("Device added successfully.", false);
+
+            await loadDevices();
+
+        } catch (error) {
+
+            showMessage(error.message, true);
+
+        }
+    }
+
+
+    async function deleteDevice(id) {
+
+        const confirmed = confirm(
+            "Are you sure you want to delete this device?"
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+
+            const response = await fetch(`/api/devices/${id}`, {
+
+                method: "DELETE"
+
+            });
+
+            if (!response.ok) {
+
+                throw new Error("Failed to delete device.");
+
+            }
+
+            showMessage("Device deleted successfully.", false);
+
+            await loadDevices();
+
+        } catch (error) {
+
+            showMessage(error.message, true);
+
+        }
+    }
+
+
+    async function turnFanOn(id) {
+
+        try {
+
+            const response = await fetch(
+                `/api/devices/${id}/fan/on`,
+                {
+                    method: "POST"
+                }
+            );
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Unable to turn fan on."
+                );
+
+            }
+
+            await loadDevices();
+
+        } catch (error) {
+
+            showMessage(error.message, true);
+
+        }
+    }
+
+
+    async function turnFanOff(id) {
+
+        try {
+
+            const response = await fetch(
+                `/api/devices/${id}/fan/off`,
+                {
+                    method: "POST"
+                }
+            );
+
+            if (!response.ok) {
+
+                throw new Error(
+                    "Unable to turn fan off."
+                );
+
+            }
+
+            await loadDevices();
+
+        } catch (error) {
+
+            showMessage(error.message, true);
+
+        }
+    }
+
+
+    function showMessage(message, isError) {
+
+        const element = document.getElementById("message");
+
+        element.textContent = message;
+
+        element.className = isError
+            ? "error"
+            : "success";
+
+    }
+
+
+    loadDevices();
+
+</script>
+
+</body>
+
+</html>
