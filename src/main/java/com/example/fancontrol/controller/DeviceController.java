@@ -48,9 +48,5 @@ public class DeviceController {
         return deviceService.turnFanOff(id);
     }
 
-    @PostMapping("/{id}/heartbeat")
-    public Device heartbeat(@PathVariable int id) {
-        return deviceService.heartbeat(id);
-    }
 
 }
