@@ -1,16 +1,21 @@
 package com.example.fancontrol.service;
 
+import com.example.fancontrol.exception.ApiException;
 import com.example.fancontrol.model.Device;
 import com.example.fancontrol.model.Status;
 import com.example.fancontrol.repository.DeviceRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.integration.mqtt.support.MqttHeaders;
+import org.springframework.messaging.Message;
+import org.springframework.messaging.MessageChannel;
 
-import java.util.Collections;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,13 +29,18 @@ class DeviceServiceTest {
     @Mock
     private DeviceRepository deviceRepository;
 
-    @InjectMocks
-    private DeviceService deviceService;
+    @Mock
+    private MessageChannel mqttOutboundChannel;
 
+    @Mock
+    private ObjectMapper objectMapper;
+
+    private DeviceService deviceService;
     private Device sampleDevice;
 
     @BeforeEach
     void setUp() {
+        deviceService = new DeviceService(deviceRepository, mqttOutboundChannel, objectMapper);
         sampleDevice = new Device();
         sampleDevice.setId(1);
         sampleDevice.setName("Living Room Fan");
@@ -55,62 +65,92 @@ class DeviceServiceTest {
 
         Device result = deviceService.getDeviceById(1);
 
-        assertNotNull(result);
         assertEquals(1, result.getId());
     }
 
     @Test
-    void getDeviceById_deviceNotFound_returnsNull() {
+    void getDeviceById_deviceNotFound_throwsNotFound() {
         when(deviceRepository.findById(99)).thenReturn(Optional.empty());
 
-        Device result = deviceService.getDeviceById(99);
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.getDeviceById(99));
 
-        assertNull(result);
+        assertEquals(404, exception.getStatus().value());
     }
 
     @Test
-    void addDevice_validDevice_savesAndReturnsDevice() {
-        Device newDevice = new Device();
-        newDevice.setName("Bedroom Fan");
-
-        when(deviceRepository.findAll()).thenReturn(Collections.emptyList());
+    void addDevice_trimsNameAndStartsOffline() {
+        when(deviceRepository.existsByNameIgnoreCase("Bedroom Fan")).thenReturn(false);
         when(deviceRepository.save(any(Device.class))).thenAnswer(invocation -> {
-            Device d = invocation.getArgument(0);
-            d.setId(2);
-            return d;
+            Device device = invocation.getArgument(0);
+            device.setId(2);
+            return device;
         });
 
-        Device created = deviceService.addDevice(newDevice);
+        Device created = deviceService.addDevice(" Bedroom Fan ");
 
-        assertNotNull(created);
+        assertEquals(2, created.getId());
         assertEquals("Bedroom Fan", created.getName());
         assertEquals(Status.OFFLINE, created.getStatus());
         assertFalse(created.isFanState());
-        verify(deviceRepository).save(newDevice);
+        verify(deviceRepository).save(any(Device.class));
     }
 
     @Test
-    void addDevice_blankName_throwsIllegalArgumentException() {
-        Device blankDevice = new Device();
-        blankDevice.setName("   ");
+    void addDevice_blankName_throwsBadRequest() {
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.addDevice("   "));
 
-        assertThrows(IllegalArgumentException.class, () -> deviceService.addDevice(blankDevice));
+        assertEquals(400, exception.getStatus().value());
         verify(deviceRepository, never()).save(any());
     }
 
     @Test
-    void addDevice_duplicateName_throwsIllegalArgumentException() {
-        Device duplicateDevice = new Device();
-        duplicateDevice.setName("Living Room Fan");
+    void addDevice_duplicateName_throwsConflict() {
+        when(deviceRepository.existsByNameIgnoreCase("Living Room Fan")).thenReturn(true);
 
-        when(deviceRepository.findAll()).thenReturn(List.of(sampleDevice));
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.addDevice("Living Room Fan"));
 
-        assertThrows(IllegalArgumentException.class, () -> deviceService.addDevice(duplicateDevice));
+        assertEquals(409, exception.getStatus().value());
         verify(deviceRepository, never()).save(any());
     }
 
     @Test
-    void removeDevice_deviceExists_deletesDevice() {
+    void updateDevice_changesNameAndPreservesReportedState() {
+        LocalDateTime activation = LocalDateTime.of(2026, 1, 1, 12, 0);
+        sampleDevice.setFanState(true);
+        sampleDevice.setLastSensorActivation(activation);
+        when(deviceRepository.findById(1)).thenReturn(Optional.of(sampleDevice));
+        when(deviceRepository.existsByNameIgnoreCaseAndIdNot("Bedroom Fan", 1)).thenReturn(false);
+        when(deviceRepository.save(sampleDevice)).thenReturn(sampleDevice);
+
+        Device updated = deviceService.updateDevice(1, " Bedroom Fan ");
+
+        assertEquals("Bedroom Fan", updated.getName());
+        assertTrue(updated.isFanState());
+        assertEquals(Status.ONLINE, updated.getStatus());
+        assertEquals(activation, updated.getLastSensorActivation());
+    }
+
+    @Test
+    void updateDevice_duplicateName_throwsConflict() {
+        when(deviceRepository.findById(1)).thenReturn(Optional.of(sampleDevice));
+        when(deviceRepository.existsByNameIgnoreCaseAndIdNot("Bedroom Fan", 1)).thenReturn(true);
+
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.updateDevice(1, "Bedroom Fan"));
+
+        assertEquals(409, exception.getStatus().value());
+        verify(deviceRepository, never()).save(any());
+    }
+
+    @Test
+    void updateDevice_blankName_throwsBadRequestBeforeLookup() {
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.updateDevice(1, " "));
+
+        assertEquals(400, exception.getStatus().value());
+        verify(deviceRepository, never()).findById(anyInt());
+    }
+
+    @Test
+    void removeDevice_existingDevice_deletesIt() {
         when(deviceRepository.findById(1)).thenReturn(Optional.of(sampleDevice));
 
         deviceService.removeDevice(1);
@@ -119,68 +159,73 @@ class DeviceServiceTest {
     }
 
     @Test
-    void removeDevice_deviceNotFound_doesNothing() {
+    void removeDevice_missingDevice_throwsNotFound() {
         when(deviceRepository.findById(99)).thenReturn(Optional.empty());
 
-        deviceService.removeDevice(99);
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.removeDevice(99));
 
+        assertEquals(404, exception.getStatus().value());
         verify(deviceRepository, never()).delete(any());
     }
 
     @Test
-    void turnFanOn_onlineDevice_turnsOnAndSaves() {
-        sampleDevice.setStatus(Status.ONLINE);
-        sampleDevice.setFanState(false);
-
+    void turnFanOn_onlineDevice_publishesAndSaves() throws Exception {
         when(deviceRepository.findById(1)).thenReturn(Optional.of(sampleDevice));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"fan\":true}");
         when(deviceRepository.save(sampleDevice)).thenReturn(sampleDevice);
 
         Device result = deviceService.turnFanOn(1);
 
-        assertNotNull(result);
         assertTrue(result.isFanState());
+        ArgumentCaptor<Message<?>> messageCaptor = ArgumentCaptor.forClass(Message.class);
+        verify(mqttOutboundChannel).send(messageCaptor.capture());
+        assertEquals("{\"fan\":true}", messageCaptor.getValue().getPayload());
+        assertEquals("fan/Living Room Fan/command", messageCaptor.getValue().getHeaders().get(MqttHeaders.TOPIC));
+        assertEquals(1, messageCaptor.getValue().getHeaders().get(MqttHeaders.QOS));
         verify(deviceRepository).save(sampleDevice);
     }
 
     @Test
-    void turnFanOn_offlineDevice_throwsIllegalStateException() {
+    void turnFanOn_offlineDevice_throwsConflictWithoutPublishing() {
         sampleDevice.setStatus(Status.OFFLINE);
-
         when(deviceRepository.findById(1)).thenReturn(Optional.of(sampleDevice));
 
-        assertThrows(IllegalStateException.class, () -> deviceService.turnFanOn(1));
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.turnFanOn(1));
+
+        assertEquals(409, exception.getStatus().value());
+        verify(mqttOutboundChannel, never()).send(any(Message.class));
         verify(deviceRepository, never()).save(any());
     }
 
     @Test
-    void turnFanOn_deviceNotFound_returnsNull() {
+    void turnFanOn_missingDevice_throwsNotFound() {
         when(deviceRepository.findById(99)).thenReturn(Optional.empty());
 
-        Device result = deviceService.turnFanOn(99);
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.turnFanOn(99));
 
-        assertNull(result);
+        assertEquals(404, exception.getStatus().value());
     }
 
     @Test
-    void turnFanOff_deviceExists_turnsOffAndSaves() {
+    void turnFanOff_existingDevice_publishesAndSaves() throws Exception {
         sampleDevice.setFanState(true);
-
         when(deviceRepository.findById(1)).thenReturn(Optional.of(sampleDevice));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"fan\":false}");
         when(deviceRepository.save(sampleDevice)).thenReturn(sampleDevice);
 
         Device result = deviceService.turnFanOff(1);
 
-        assertNotNull(result);
         assertFalse(result.isFanState());
+        verify(mqttOutboundChannel).send(any(Message.class));
         verify(deviceRepository).save(sampleDevice);
     }
 
     @Test
-    void turnFanOff_deviceNotFound_returnsNull() {
+    void turnFanOff_missingDevice_throwsNotFound() {
         when(deviceRepository.findById(99)).thenReturn(Optional.empty());
 
-        Device result = deviceService.turnFanOff(99);
+        ApiException exception = assertThrows(ApiException.class, () -> deviceService.turnFanOff(99));
 
-        assertNull(result);
+        assertEquals(404, exception.getStatus().value());
     }
 }

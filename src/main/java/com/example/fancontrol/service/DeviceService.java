@@ -1,5 +1,6 @@
 package com.example.fancontrol.service;
 
+import com.example.fancontrol.exception.ApiException;
 import com.example.fancontrol.model.Device;
 import com.example.fancontrol.model.Status;
 import com.example.fancontrol.repository.DeviceRepository;
@@ -36,38 +37,43 @@ public class DeviceService {
     }
 
     public Device getDeviceById(int id) {
-        return deviceRepository.findById(id).orElse(null);
+        return findDeviceOrThrow(id);
     }
 
-    public Device addDevice(Device device) {
-        if (device.getName() == null || device.getName().isBlank()) {
-            throw new IllegalArgumentException("Device name cannot be empty.");
-        }
-        for (Device existing : deviceRepository.findAll()) {
-            if (existing.getName().equalsIgnoreCase(device.getName())) {
-                throw new IllegalArgumentException("A device with this name already exists.");
-            }
-        }
+    public Device addDevice(String name) {
+        String normalizedName = validateName(name);
+        ensureNameIsAvailable(normalizedName);
+
+        Device device = new Device();
+        device.setName(normalizedName);
         device.setFanState(false);
         device.setStatus(Status.OFFLINE);
         device.setLastSeen(null);
         return deviceRepository.save(device);
     }
 
-    public void removeDevice(int id) {
-        Device device = deviceRepository.findById(id).orElse(null);
-        if (device != null) {
-            deviceRepository.delete(device);
+    public Device updateDevice(int id, String name) {
+        String normalizedName = validateName(name);
+        Device device = findDeviceOrThrow(id);
+
+        if (deviceRepository.existsByNameIgnoreCaseAndIdNot(normalizedName, id)) {
+            throw ApiException.conflict("A device with this name already exists.");
         }
+
+        device.setName(normalizedName);
+        return deviceRepository.save(device);
+    }
+
+    public void removeDevice(int id) {
+        deviceRepository.delete(findDeviceOrThrow(id));
     }
 
     // ---------- Commands (server → device, via MQTT) ----------
 
     public Device turnFanOn(int id) {
-        Device device = deviceRepository.findById(id).orElse(null);
-        if (device == null) return null;
+        Device device = findDeviceOrThrow(id);
         if (device.getStatus() == Status.OFFLINE) {
-            throw new IllegalStateException("Cannot control an offline device.");
+            throw ApiException.conflict("Cannot control an offline device.");
         }
         publishCommand(device, true);
         device.setFanState(true);
@@ -75,8 +81,7 @@ public class DeviceService {
     }
 
     public Device turnFanOff(int id) {
-        Device device = deviceRepository.findById(id).orElse(null);
-        if (device == null) return null;
+        Device device = findDeviceOrThrow(id);
         publishCommand(device, false);
         device.setFanState(false);
         return deviceRepository.save(device);
@@ -92,7 +97,25 @@ public class DeviceService {
                             .setHeader(MqttHeaders.QOS, 1)
                             .build());
         } catch (Exception e) {
-            throw new RuntimeException("Failed to publish MQTT command", e);
+            throw ApiException.serviceUnavailable("Failed to send the fan command to the MQTT broker.");
+        }
+    }
+
+    private Device findDeviceOrThrow(int id) {
+        return deviceRepository.findById(id)
+                .orElseThrow(() -> ApiException.notFound("Device with id " + id + " was not found."));
+    }
+
+    private String validateName(String name) {
+        if (name == null || name.isBlank()) {
+            throw ApiException.badRequest("Device name cannot be empty.");
+        }
+        return name.trim();
+    }
+
+    private void ensureNameIsAvailable(String name) {
+        if (deviceRepository.existsByNameIgnoreCase(name)) {
+            throw ApiException.conflict("A device with this name already exists.");
         }
     }
 
