@@ -45,6 +45,23 @@
             font-size: 16px;
         }
 
+        .edit-device-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .edit-device-form[hidden] {
+            display: none;
+        }
+
+        .edit-device-form input {
+            flex: 1;
+            min-width: 150px;
+            padding: 8px;
+        }
+
         button {
             padding: 10px 15px;
             margin-right: 5px;
@@ -127,7 +144,7 @@
 
     </div>
 
-    <p id="message"></p>
+    <p id="message" role="status" aria-live="polite"></p>
     ```
 
 </div>
@@ -157,7 +174,7 @@
             const response = await fetch("/api/devices");
 
             if (!response.ok) {
-                throw new Error("Failed to load devices.");
+                throw new Error(await getErrorMessage(response, "Failed to load devices."));
             }
 
             const devices = await response.json();
@@ -180,10 +197,11 @@
                 const deviceElement = document.createElement("div");
 
                 deviceElement.className = "device";
+                deviceElement.dataset.deviceId = device.id;
 
                 deviceElement.innerHTML = `
 
-                    <h2>${device.name}</h2>
+                    <h2>${escapeHtml(device.name)}</h2>
 
                     <p>
                         ID:
@@ -193,7 +211,7 @@
                     <p>
                         Status:
                         <span class="status">
-                            ${device.status}
+                            ${escapeHtml(device.status)}
                         </span>
                     </p>
 
@@ -206,12 +224,12 @@
 
                     <p>
                         Last sensor activation:
-                        ${device.lastSensorActivation ?? "Never"}
+                        ${escapeHtml(device.lastSensorActivation ?? "Never")}
                     </p>
 
                     <p>
                         Last communication:
-                        ${device.lastSeen ?? "Never"}
+                        ${escapeHtml(device.lastSeen ?? "Never")}
                     </p>
 
                     <button onclick="turnFanOn(${device.id})">
@@ -221,6 +239,21 @@
                     <button onclick="turnFanOff(${device.id})">
                         Turn Off
                     </button>
+
+                    <button onclick="editDevice(${device.id})">
+                        Edit Name
+                    </button>
+
+                    <div class="edit-device-form" id="edit-form-${device.id}" hidden>
+                        <input
+                            type="text"
+                            id="edit-name-${device.id}"
+                            value="${escapeHtml(device.name)}"
+                            aria-label="New name for ${escapeHtml(device.name)}"
+                        >
+                        <button onclick="saveDeviceName(${device.id})">Save</button>
+                        <button onclick="cancelEditDevice(${device.id})">Cancel</button>
+                    </div>
 
                     <br>
 
@@ -274,9 +307,7 @@
             });
 
             if (!response.ok) {
-
-                throw new Error("Failed to add device.");
-
+                throw new Error(await getErrorMessage(response, "Failed to add device."));
             }
 
             input.value = "";
@@ -289,6 +320,63 @@
 
             showMessage(error.message, true);
 
+        }
+    }
+
+
+    async function editDevice(id) {
+
+        const deviceCard = document.querySelector(`.device[data-device-id="${id}"]`);
+        const editForm = deviceCard?.querySelector(`#edit-form-${id}`);
+        const nameInput = deviceCard?.querySelector(`#edit-name-${id}`);
+
+        if (!editForm || !nameInput) {
+            showMessage("Could not open the device editor.", true);
+            return;
+        }
+
+        editForm.hidden = false;
+        nameInput.focus();
+        nameInput.select();
+    }
+
+
+    function cancelEditDevice(id) {
+        const editForm = document.getElementById(`edit-form-${id}`);
+        if (editForm) {
+            editForm.hidden = true;
+        }
+    }
+
+
+    async function saveDeviceName(id) {
+
+        const nameInput = document.getElementById(`edit-name-${id}`);
+        const name = nameInput?.value.trim() ?? "";
+
+        if (name === "") {
+            showMessage("Device name cannot be empty.", true);
+            nameInput?.focus();
+            return;
+        }
+
+        try {
+            const response = await fetch(`/api/devices/${id}`, {
+                method: "PUT",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ name })
+            });
+
+            if (!response.ok) {
+                throw new Error(await getErrorMessage(response, "Failed to update device."));
+            }
+
+            showMessage("Device updated successfully.", false);
+            await loadDevices();
+        } catch (error) {
+            showMessage(error.message, true);
         }
     }
 
@@ -312,9 +400,7 @@
             });
 
             if (!response.ok) {
-
-                throw new Error("Failed to delete device.");
-
+                throw new Error(await getErrorMessage(response, "Failed to delete device."));
             }
 
             showMessage("Device deleted successfully.", false);
@@ -341,11 +427,7 @@
             );
 
             if (!response.ok) {
-
-                throw new Error(
-                    "Unable to turn fan on."
-                );
-
+                throw new Error(await getErrorMessage(response, "Unable to turn fan on."));
             }
 
             await loadDevices();
@@ -370,11 +452,7 @@
             );
 
             if (!response.ok) {
-
-                throw new Error(
-                    "Unable to turn fan off."
-                );
-
+                throw new Error(await getErrorMessage(response, "Unable to turn fan off."));
             }
 
             await loadDevices();
@@ -384,6 +462,29 @@
             showMessage(error.message, true);
 
         }
+    }
+
+
+    async function getErrorMessage(response, fallback) {
+
+        try {
+            const error = await response.json();
+            return error.message || fallback;
+        } catch {
+            return fallback;
+        }
+    }
+
+
+    function escapeHtml(value) {
+
+        return String(value).replace(/[&<>"']/g, character => ({
+            "&": "&amp;",
+            "<": "&lt;",
+            ">": "&gt;",
+            '"': "&quot;",
+            "'": "&#39;"
+        })[character]);
     }
 
 
