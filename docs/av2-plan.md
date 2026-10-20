@@ -143,9 +143,9 @@ Para reduzir complexidade, não proponho inicialmente:
 
 #### Verificação da Etapa 2
 
-- `DeviceControllerTest` e `DeviceServiceTest`: **24 testes passaram, 0 falhas e 0 erros**.
+- `DeviceControllerTest`, `DeviceServiceTest` e `FancontrolApplicationTests`: **25 testes passaram, 0 falhas e 0 erros**.
 - Os testes cobrem o formato das respostas, `POST`, `PUT`, `DELETE`, erros `400`, `404` e `409`, preservação de estado ao renomear e publicação do comando MQTT usando canal simulado.
-- O teste geral de contexto `FancontrolApplicationTests` foi tentado, mas não consegue inicializar neste ambiente porque o PostgreSQL configurado em `localhost:5432` não está disponível. Isso não representa falha nos 24 testes focados; a inicialização integrada deve ser repetida quando o banco local estiver ativo.
+- O teste de contexto iniciou a aplicação, conectou ao PostgreSQL local e ativou os componentes MQTT. A suíte foi executada fora do sandbox para permitir acesso ao serviço local e a instrumentação JVM do Mockito.
 
 ### Etapa 3 — Introduzir Flyway com preservação dos dados
 
