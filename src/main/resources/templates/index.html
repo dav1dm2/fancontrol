@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Controle de ventiladores</title>
+    <title>Fan Control</title>
     <style>
         :root { color-scheme: light; font-family: Arial, sans-serif; color: #17212b; background: #f3f6f8; }
         * { box-sizing: border-box; }
@@ -52,69 +52,69 @@
 <body>
 <header>
     <div>
-        <h1>Controle de ventiladores</h1>
-        <p class="subtitle">Monitoramento centralizado dos dispositivos</p>
+        <h1>Fan Control</h1>
+        <p class="subtitle">Centralized device monitoring</p>
     </div>
     <div id="accountBar" class="header-actions" hidden>
         <span id="accountLabel"></span>
-        <button id="logoutButton" class="secondary" type="button">Sair</button>
+        <button id="logoutButton" class="secondary" type="button">Log out</button>
     </div>
 </header>
 
 <main>
     <p id="message" role="status" aria-live="polite"></p>
-    <section id="authPanel" class="auth-grid" aria-label="Acesso ao sistema">
+    <section id="authPanel" class="auth-grid" aria-label="System access">
         <form id="loginForm" class="panel">
-            <h2>Entrar</h2>
-            <label class="field">Nome
+            <h2>Sign in</h2>
+            <label class="field">Name
                 <input name="name" autocomplete="username" required maxlength="100">
             </label>
-            <label class="field">Senha
+            <label class="field">Password
                 <input name="password" type="password" autocomplete="current-password" required>
             </label>
-            <button type="submit">Entrar</button>
+            <button type="submit">Sign in</button>
         </form>
 
         <form id="registerForm" class="panel">
-            <h2>Criar conta</h2>
-            <p class="muted">O cadastro cria uma conta comum, com acesso somente para consulta.</p>
-            <label class="field">Nome
+            <h2>Create an account</h2>
+            <p class="muted">New accounts have read-only access.</p>
+            <label class="field">Name
                 <input name="name" autocomplete="username" required maxlength="100">
             </label>
-            <label class="field">Senha (mínimo de 8 caracteres)
+            <label class="field">Password (at least 8 characters)
                 <input name="password" type="password" autocomplete="new-password" minlength="8" required>
             </label>
-            <button type="submit" class="secondary">Cadastrar</button>
+            <button type="submit" class="secondary">Register</button>
         </form>
     </section>
 
     <section id="appPanel" hidden>
         <section id="adminDevicePanel" class="panel" hidden>
-            <h2>Adicionar dispositivo</h2>
+            <h2>Add a device</h2>
             <form id="addDeviceForm" class="header-actions">
                 <label class="field" style="flex:1; min-width: min(100%, 220px); margin:0">
-                    <span class="muted">Nome do dispositivo</span>
-                    <input name="name" required maxlength="255" placeholder="Ex.: ventilador-sala">
+                    <span class="muted">Device name</span>
+                    <input name="name" required maxlength="255" placeholder="e.g. living-room-fan">
                 </label>
-                <button type="submit">Adicionar</button>
+                <button type="submit">Add device</button>
             </form>
         </section>
 
         <section class="panel">
             <div class="toolbar">
-                <h2 style="margin:0">Dispositivos</h2>
-                <button id="refreshButton" class="secondary" type="button">Atualizar lista</button>
+                <h2 style="margin:0">Devices</h2>
+                <button id="refreshButton" class="secondary" type="button">Refresh list</button>
             </div>
-            <div id="devices" aria-live="polite"><p>Carregando...</p></div>
+            <div id="devices" aria-live="polite"><p>Loading...</p></div>
         </section>
 
         <section id="adminUsersPanel" class="panel" hidden>
             <div class="toolbar">
                 <div>
-                    <h2 style="margin:0 0 4px">Usuários</h2>
-                    <p class="muted" style="margin:0">A lista mostra somente os nomes das contas.</p>
+                    <h2 style="margin:0 0 4px">Users</h2>
+                    <p class="muted" style="margin:0">Only account names are shown.</p>
                 </div>
-                <button id="refreshUsersButton" class="secondary" type="button">Atualizar lista</button>
+                <button id="refreshUsersButton" class="secondary" type="button">Refresh list</button>
             </div>
             <ul id="users"></ul>
         </section>
@@ -136,7 +136,7 @@
             const error = await readApiError(response);
             if (response.status === 401 && accessToken) {
                 clearSession();
-                showMessage("Sua sessão terminou. Entre novamente.", true);
+                showMessage("Your session has expired. Please sign in again.", true);
             }
             throw new Error(error);
         }
@@ -147,9 +147,9 @@
     async function readApiError(response) {
         try {
             const body = await response.json();
-            return body.message || "Não foi possível concluir a solicitação.";
+            return body.message || "The request could not be completed.";
         } catch {
-            return "Não foi possível concluir a solicitação.";
+            return "The request could not be completed.";
         }
     }
 
@@ -171,7 +171,7 @@
         document.getElementById("authPanel").hidden = true;
         document.getElementById("appPanel").hidden = false;
         document.getElementById("accountBar").hidden = false;
-        document.getElementById("accountLabel").textContent = `${user.name} · ${isAdmin ? "Administrador" : "Usuário"}`;
+        document.getElementById("accountLabel").textContent = `${user.name} · ${isAdmin ? "Admin" : "User"}`;
         document.getElementById("adminDevicePanel").hidden = !isAdmin;
         document.getElementById("adminUsersPanel").hidden = !isAdmin;
         showMessage("");
@@ -216,7 +216,7 @@
             });
             formElement.reset();
             document.querySelector('#loginForm input[name="name"]').value = user.name;
-            showMessage("Conta criada. Entre com seu nome e senha.");
+            showMessage("Account created. Sign in with your name and password.");
         } catch (error) {
             showMessage(error.message, true);
         }
@@ -224,7 +224,7 @@
 
     document.getElementById("logoutButton").addEventListener("click", () => {
         clearSession();
-        showMessage("Você saiu do sistema.");
+        showMessage("You have signed out.");
     });
 
     document.getElementById("refreshButton").addEventListener("click", loadDevices);
@@ -240,7 +240,7 @@
                 body: JSON.stringify({ name: form.get("name") })
             });
             formElement.reset();
-            showMessage("Dispositivo adicionado.");
+            showMessage("Device added.");
             await loadDevices();
         } catch (error) {
             showMessage(error.message, true);
@@ -257,14 +257,14 @@
                 const card = button.closest(".device");
                 const name = card.querySelector("input[name='newName']").value.trim();
                 await api(`/api/devices/${id}`, { method: "PUT", body: JSON.stringify({ name }) });
-                showMessage("Nome do dispositivo atualizado.");
+                showMessage("Device name updated.");
             } else if (action === "delete") {
-                if (!confirm("Remover este dispositivo?")) return;
+                if (!confirm("Remove this device?")) return;
                 await api(`/api/devices/${id}`, { method: "DELETE" });
-                showMessage("Dispositivo removido.");
+                showMessage("Device removed.");
             } else if (action === "on" || action === "off") {
                 await api(`/api/devices/${id}/fan/${action}`, { method: "POST" });
-                showMessage("Comando enviado.");
+                showMessage("Command sent.");
             }
             await loadDevices();
         } catch (error) {
@@ -277,15 +277,15 @@
         if (!button) return;
         const id = Number(button.dataset.userId);
         const userName = button.dataset.userName;
-        if (!confirm(`Remover a conta de ${userName}?`)) return;
+        if (!confirm(`Remove the account for ${userName}?`)) return;
         try {
             await api(`/api/users/${id}`, { method: "DELETE" });
             if (currentUser && currentUser.id === id) {
                 clearSession();
-                showMessage("Sua conta foi removida.");
+                showMessage("Your account has been removed.");
                 return;
             }
-            showMessage("Usuário removido.");
+            showMessage("User removed.");
             await loadUsers();
         } catch (error) {
             showMessage(error.message, true);
@@ -297,7 +297,7 @@
             const devices = await api("/api/devices");
             const container = document.getElementById("devices");
             if (devices.length === 0) {
-                container.innerHTML = '<p class="muted">Nenhum dispositivo cadastrado.</p>';
+                container.innerHTML = '<p class="muted">No devices have been added.</p>';
                 return;
             }
             const isAdmin = currentUser && currentUser.role === "ADMIN";
@@ -306,18 +306,18 @@
                     <h3>${escapeHtml(device.name)}</h3>
                     <p><strong>ID:</strong> ${device.id}</p>
                     <p><strong>Status:</strong> <span class="status">${escapeHtml(device.status)}</span></p>
-                    <p><strong>Ventilador:</strong> ${device.fanState ? "Ligado" : "Desligado"}</p>
-                    <p><strong>Último sensor:</strong> ${escapeHtml(device.lastSensorActivation ?? "Nunca")}</p>
-                    <p><strong>Última comunicação:</strong> ${escapeHtml(device.lastSeen ?? "Nunca")}</p>
+                    <p><strong>Fan:</strong> ${device.fanState ? "On" : "Off"}</p>
+                    <p><strong>Last sensor activation:</strong> ${escapeHtml(device.lastSensorActivation ?? "Never")}</p>
+                    <p><strong>Last communication:</strong> ${escapeHtml(device.lastSeen ?? "Never")}</p>
                     ${isAdmin ? `
-                        <label class="field">Nome do dispositivo
-                            <input name="newName" value="${escapeHtml(device.name)}" maxlength="255" aria-label="Novo nome de ${escapeHtml(device.name)}">
+                        <label class="field">Device name
+                            <input name="newName" value="${escapeHtml(device.name)}" maxlength="255" aria-label="New name for ${escapeHtml(device.name)}">
                         </label>
                         <div class="device-actions">
-                            <button data-action="rename" data-id="${device.id}" type="button">Salvar nome</button>
-                            <button data-action="on" data-id="${device.id}" type="button">Ligar</button>
-                            <button data-action="off" data-id="${device.id}" type="button" class="secondary">Desligar</button>
-                            <button data-action="delete" data-id="${device.id}" type="button" class="danger">Remover</button>
+                            <button data-action="rename" data-id="${device.id}" type="button">Save name</button>
+                            <button data-action="on" data-id="${device.id}" type="button">Turn on</button>
+                            <button data-action="off" data-id="${device.id}" type="button" class="secondary">Turn off</button>
+                            <button data-action="delete" data-id="${device.id}" type="button" class="danger">Remove</button>
                         </div>
                     ` : ""}
                 </article>
@@ -332,13 +332,13 @@
             const users = await api("/api/users");
             const list = document.getElementById("users");
             if (users.length === 0) {
-                list.innerHTML = '<li class="muted">Nenhum usuário cadastrado.</li>';
+                list.innerHTML = '<li class="muted">No users have been registered.</li>';
                 return;
             }
             list.innerHTML = users.map(user => `
                 <li>
                     <span>${escapeHtml(user.name)}</span>
-                    <button type="button" class="danger" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Remover</button>
+                    <button type="button" class="danger" data-user-id="${user.id}" data-user-name="${escapeHtml(user.name)}">Remove</button>
                 </li>
             `).join("");
         } catch (error) {
