@@ -154,7 +154,26 @@ Para reduzir complexidade, não proponho inicialmente:
 - Desativar a atualização automática do esquema pelo Hibernate somente quando a migration estiver pronta.
 - Manter as credenciais e configurações locais fora dos arquivos versionados.
 
-**Entrega:** esquema reproduzível e versionado, sem descartar dispositivos existentes.
+**Entrega:** concluída. O esquema atual de dispositivos é criado por migration em bancos vazios, e bancos existentes podem ser registrados como versão inicial pelo Flyway. O banco local antigo foi recriado vazio a pedido do usuário, depois de um backup local.
+
+#### Alterações realizadas
+
+- Adicionado o starter Flyway do Spring Boot e o módulo PostgreSQL do Flyway.
+- Criada `V1__create_devices_table.sql` com a tabela `devices`, os campos e tipos equivalentes à entidade atual, ID identity, nome único e restrição para os estados `ONLINE` e `OFFLINE`.
+- Habilitado `baseline-on-migrate` com versão inicial `1`: ao encontrar um esquema já preenchido sem histórico Flyway, a aplicação registra a versão inicial e não tenta recriar `devices`. Em um banco vazio, Flyway executa a migration V1.
+- Alterado `spring.jpa.hibernate.ddl-auto` de `update` para `validate`. Hibernate agora confere a compatibilidade do mapeamento sem criar ou alterar tabelas.
+- Movidas as configurações de banco e MQTT para variáveis de ambiente, com importação opcional de `.env`. `.env` foi adicionado ao `.gitignore`; `.env.example` documenta as variáveis necessárias sem incluir credenciais locais.
+- Em um novo checkout, copiar `.env.example` para `.env` e ajustar `DB_PASSWORD` para a senha local do PostgreSQL. A aplicação carrega esse arquivo local automaticamente.
+- A migration inicial cobre somente o modelo `Device` atual. As tabelas de usuário e histórico serão adicionadas em migrations futuras, junto com as respectivas funcionalidades.
+
+#### Verificação da Etapa 3
+
+- Antes da recriação, o banco antigo foi reconhecido e registrado pelo Flyway como baseline `1`; Flyway não executou V1 sobre a tabela existente, e Hibernate validou o esquema.
+- O banco antigo foi recriado vazio a pedido do usuário. Antes da exclusão foi salvo um backup local em `/tmp/fancontrol-before-flyway-20261028.dump`.
+- Com o banco vazio, a aplicação executou `V1` com sucesso, criou `devices` e `flyway_schema_history`, e Hibernate validou a estrutura.
+- Suíte completa: **26 testes passaram, 0 falhas e 0 erros**.
+- Verificação HTTP em execução: listagem retornou `200` e `[]`; cadastro retornou `201`; atualização retornou `200`; remoção retornou `204`. O dispositivo temporário foi removido e a tabela ficou vazia.
+- Na inicialização seguinte, Flyway validou a migration existente e informou que o banco estava atualizado, sem executá-la novamente.
 
 ### Etapa 4 — Implementar usuário e autenticação JWT
 
