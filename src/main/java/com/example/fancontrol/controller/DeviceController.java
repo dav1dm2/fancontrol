@@ -1,7 +1,12 @@
 package com.example.fancontrol.controller;
 
+import com.example.fancontrol.dto.DeviceRequest;
+import com.example.fancontrol.dto.DeviceResponse;
+import com.example.fancontrol.mapper.DeviceMapper;
 import com.example.fancontrol.model.Device;
 import com.example.fancontrol.service.DeviceService;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -11,46 +16,47 @@ import java.util.List;
 public class DeviceController {
 
     private final DeviceService deviceService;
+    private final DeviceMapper deviceMapper;
 
-    public DeviceController(DeviceService deviceService) {
+    public DeviceController(DeviceService deviceService, DeviceMapper deviceMapper) {
         this.deviceService = deviceService;
+        this.deviceMapper = deviceMapper;
     }
 
     @GetMapping
-    public List<Device> getDevices() {
-        return deviceService.getDevices();
+    public List<DeviceResponse> getDevices() {
+        return deviceService.getDevices().stream().map(deviceMapper::toResponse).toList();
     }
 
     @GetMapping("/{id}")
-    public Device getDevice(@PathVariable int id) {
-        return deviceService.getDeviceById(id);
+    public DeviceResponse getDevice(@PathVariable int id) {
+        return deviceMapper.toResponse(deviceService.getDeviceById(id));
     }
 
     @PostMapping
-    public Device addDevice(@RequestBody Device device) {
-        return deviceService.addDevice(device);
+    public ResponseEntity<DeviceResponse> addDevice(@RequestBody DeviceRequest request) {
+        Device created = deviceService.addDevice(request.name());
+        return ResponseEntity.status(HttpStatus.CREATED).body(deviceMapper.toResponse(created));
+    }
+
+    @PutMapping("/{id}")
+    public DeviceResponse updateDevice(@PathVariable int id, @RequestBody DeviceRequest request) {
+        return deviceMapper.toResponse(deviceService.updateDevice(id, request.name()));
     }
 
     @DeleteMapping("/{id}")
-    public void removeDevice(@PathVariable int id) {
+    public ResponseEntity<Void> removeDevice(@PathVariable int id) {
         deviceService.removeDevice(id);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{id}/fan/on")
-    public Device turnFanOn(@PathVariable int id) {
-
-        return deviceService.turnFanOn(id);
+    public DeviceResponse turnFanOn(@PathVariable int id) {
+        return deviceMapper.toResponse(deviceService.turnFanOn(id));
     }
 
     @PostMapping("/{id}/fan/off")
-    public Device turnFanOff(@PathVariable int id) {
-
-        return deviceService.turnFanOff(id);
+    public DeviceResponse turnFanOff(@PathVariable int id) {
+        return deviceMapper.toResponse(deviceService.turnFanOff(id));
     }
-
-    @PostMapping("/{id}/heartbeat")
-    public Device heartbeat(@PathVariable int id) {
-        return deviceService.heartbeat(id);
-    }
-
 }
