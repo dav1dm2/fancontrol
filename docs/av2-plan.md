@@ -37,14 +37,15 @@ Também não foram encontrados autenticação JWT, Spring Security, Swagger/Open
 - “Produtos/Categorias” são exemplos conhecidos de outros sistemas, não requisitos para este projeto.
 - O cadastro simples de operador faz parte do escopo e é aceitável para a demonstração.
 - O professor exige mais de um controller; não exige exatamente cinco. Vamos criar controllers conforme as responsabilidades reais do sistema e evitar divisões artificiais.
-- O MVP será demonstrado pela API/Swagger. Como a página HTML atual chama diretamente a API, ela também precisará enviar o JWT para continuar funcionando depois que as rotas forem protegidas; a adaptação deve ser simples e limitada ao fluxo de login e chamadas autenticadas.
-- O histórico ficará restrito às solicitações humanas para ligar/desligar ventiladores.
+- O MVP será demonstrado pela API/Swagger. Como a página HTML chama diretamente a API, ela também envia o JWT nas chamadas autenticadas.
+- Conforme a ampliação aprovada pelo usuário antes da Etapa 4, haverá dois papéis: `ADMIN` e `USER`. Cadastro público cria somente `USER`; um administrador inicial é provisionado por configuração local.
+- O histórico continuará restrito às solicitações humanas para ligar/desligar ventiladores e permanece para uma etapa posterior.
 
 ## 4. Interpretação dos requisitos da AV2
 
 | Requisito | Aplicação proposta ao projeto |
 |---|---|
-| JWT com Spring Security | Login de operador; API administrativa protegida por token. |
+| JWT com Spring Security | Login de operador; leitura de dispositivos para usuários autenticados e alterações reservadas ao administrador. |
 | Swagger | Página interativa com rotas, parâmetros, modelos e respostas documentados. |
 | Flyway | Migrations SQL versionadas para criar e evoluir o esquema do banco. |
 | Docker (opcional) | Imagem da aplicação e, se houver tempo, ambiente com PostgreSQL e Mosquitto. |
@@ -69,7 +70,7 @@ Também não foram encontrados autenticação JWT, Spring Security, Swagger/Open
 | Entidade | Dados mínimos | Observações |
 |---|---|---|
 | `Device` (existente) | ID, nome único, status, estado do ventilador, última ativação do sensor, última comunicação | Preservar o modelo atual e acrescentar apenas o que for necessário. |
-| `User` (nova) | ID, nome, e-mail único, senha com hash | Senha nunca deve ser armazenada em texto simples. Para o MVP, não são necessários perfis ou permissões complexos. |
+| `OperatorUser` (nova) | ID, nome único, senha com hash, papel (`ADMIN` ou `USER`) | Senha nunca é armazenada em texto simples. Cadastro público cria papel `USER`; o primeiro administrador vem da configuração local. |
 | `CommandRecord` (nova) | ID, dispositivo, estado solicitado, data/hora, operador | Registra a solicitação enviada pela aplicação. Não deve afirmar que o dispositivo executou o comando até receber confirmação MQTT. |
 
 O histórico serve como auditoria simples da ação humana. Não é necessário criar um sistema genérico de auditoria nem guardar cada mensagem MQTT para satisfazer o escopo mínimo.
@@ -80,19 +81,21 @@ O `WebController` atual atende à página HTML e não precisa ser contado como c
 
 | Controller | Responsabilidade e rotas indicativas |
 |---|---|
-| `AuthController` | `POST /api/auth/register`, `POST /api/auth/login` e `GET /api/auth/me`. Cadastro simples, autenticação e consulta do operador autenticado. |
-| `DeviceController` | `GET /api/devices`, `GET /api/devices/{id}`, `POST /api/devices`, `PUT /api/devices/{id}`, `DELETE /api/devices/{id}`. |
-| `FanCommandController` | `POST /api/devices/{id}/fan/on` e `POST /api/devices/{id}/fan/off`. Solicitar comandos e registrar a solicitação. |
-| `CommandHistoryController` | `GET /api/commands` e, se útil, `GET /api/commands/{id}`. Consultar os registros de comandos. |
+| `AuthController` | `POST /api/auth/register`, `POST /api/auth/login` e `GET /api/auth/me`. Cadastro, autenticação e consulta do operador autenticado. |
+| `DeviceController` | `GET /api/devices`, `GET /api/devices/{id}`, `POST /api/devices`, `PUT /api/devices/{id}`, `DELETE /api/devices/{id}`. Consulta para ambos os papéis; escrita para `ADMIN`. Comandos permanecem neste controller nesta implementação mínima. |
+| `UserController` | `GET /api/users` e `DELETE /api/users/{id}`. Lista somente nomes/IDs e remove usuários; exclusivo de `ADMIN`. |
+| `CommandHistoryController` (planejado) | Consulta os registros de comandos quando o histórico for implementado. |
 
-Essas rotas formam o escopo aprovado para iniciar o desenvolvimento. O cadastro e o login serão públicos; perfil, dispositivos, comandos e histórico exigirão JWT. Não haverá papéis ou permissões diferentes entre operadores nesta versão. O evento MQTT continua sendo uma comunicação dispositivo-aplicação e não deve ser tratado como login de usuário.
+O cadastro e o login são públicos; perfil e leitura de dispositivos exigem JWT. Operações de escrita/comando em dispositivos e gerenciamento de usuários exigem papel `ADMIN`. O evento MQTT continua sendo uma comunicação dispositivo-aplicação e não é tratado como login de usuário.
 
 ### Regras simples do MVP
 
 - O nome do dispositivo é obrigatório e único.
 - O status do dispositivo continua sendo `ONLINE` ou `OFFLINE`.
-- O usuário faz login com e-mail e senha; a senha armazenada deve estar protegida por hash.
-- O token JWT é necessário para as rotas administrativas e para enviar comandos.
+- O operador faz login com nome e senha; a senha armazenada deve estar protegida por hash.
+- O token JWT é necessário para consultar dispositivos e perfil; somente `ADMIN` pode alterar dispositivos, enviar comandos ou gerenciar usuários.
+- O cadastro público sempre cria `USER`; a configuração local provisiona o primeiro `ADMIN` sem expor cadastro de administradores na API.
+- Não é possível remover o último administrador.
 - O registro de comando descreve uma solicitação feita pelo operador, não uma confirmação física de que o ventilador ligou ou desligou.
 - A aplicação central continua sendo responsável por emitir comandos; o dispositivo apenas reporta eventos e estado.
 - O banco local existente deve ser migrado com cuidado para não perder os dispositivos já cadastrados.
@@ -102,8 +105,8 @@ Essas rotas formam o escopo aprovado para iniciar o desenvolvimento. O cadastro 
 Para reduzir complexidade, não proponho inicialmente:
 
 - produtos ou categorias, salvo se o professor disser que são obrigatórios;
-- papéis diferentes entre operadores, permissões detalhadas ou fluxo de recuperação de senha;
-- refresh token, revogação de token ou integração com provedor externo de identidade;
+- fluxo de recuperação de senha, refresh token ou provedor externo de identidade;
+- revogação individual de token ou integração com provedor externo de identidade;
 - filas de comandos, retentativas sofisticadas ou confirmação transacional do MQTT;
 - auditoria completa de todas as mensagens de sensores;
 - interface web completa com telas de login e administração;
@@ -181,20 +184,43 @@ Para reduzir complexidade, não proponho inicialmente:
 - Proteger a senha com hash.
 - Implementar cadastro e login.
 - Emitir e validar JWT usando Spring Security.
-- Deixar públicas apenas as rotas necessárias, como cadastro/login e documentação.
-- Exigir token para operações de dispositivos, comandos e histórico.
-- Adaptar a página HTML existente para fazer login e enviar o JWT nas chamadas, mantendo o painel funcional sem criar uma interface administrativa nova.
+- Deixar públicas apenas a página, o cadastro e o login (a documentação será liberada na Etapa 6).
+- Exigir token para leitura de dispositivos e perfil; restringir alterações de dispositivos, comandos e usuários ao papel `ADMIN`.
+- Adaptar a página existente para login e envio do JWT, com controles administrativos condicionais e layout responsivo.
 
-**Entrega:** fluxo demonstrável de cadastro/login e rotas protegidas.
+**Entrega:** concluída na branch `codex/av2-mvp`.
 
-### Etapa 5 — Implementar controllers e histórico
+#### Alterações realizadas
 
-- Completar `DeviceController` com CRUD de dispositivos.
-- Criar `UserController` para consultar o perfil autenticado.
-- Separar comandos de ventilador em `FanCommandController`.
+- Criados `OperatorUser`, `Role`, repositório, DTOs e serviços de autenticação/gerenciamento. O modelo usa nome e senha, conforme o fluxo solicitado.
+- Senhas são gravadas com BCrypt; a API nunca devolve hash nem senha. O cadastro público atribui `USER` no servidor e não aceita papel enviado pelo cliente.
+- Criadas as rotas `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`, `GET /api/users` e `DELETE /api/users/{id}`. A listagem administrativa retorna somente ID e nome.
+- JWT assinado com HS256, segredo configurado localmente, expiração de uma hora e autenticação sem sessão. O papel atual é carregado do banco em cada requisição; tokens de contas removidas deixam de funcionar imediatamente.
+- Regras de acesso: `USER` e `ADMIN` podem consultar todos os dispositivos; apenas `ADMIN` pode criar, editar, remover e comandar dispositivos, além de listar/remover usuários. O último administrador não pode ser removido.
+- O primeiro `ADMIN` é criado uma única vez a partir de `ADMIN_INITIAL_NAME` e `ADMIN_INITIAL_PASSWORD` no `.env` local. Os valores não são versionados. O `.env.example` contém somente nomes e exemplos não secretos.
+- A página HTML foi substituída por um painel responsivo em português, com login/cadastro, estado de sessão, lista de dispositivos, ações administrativas condicionais, lista de usuários sem credenciais e mensagens de erro. Cadastro público cria usuários apenas de consulta.
+- Migration `V2__create_operator_users.sql` adiciona `app_users`, papel com restrição `ADMIN`/`USER` e índice de nome único sem diferenciar maiúsculas/minúsculas. A V1 e os dispositivos existentes foram preservados.
+- O formato JSON de erro do filtro de segurança foi implementado para respostas `401` e `403`.
+
+#### Verificação da Etapa 4
+
+- Suíte Maven: **29 testes passaram, 0 falhas e 0 erros**. Inclui API sem token (`401`), cadastro comum, bloqueio de escrita/listagem administrativa para `USER` (`403`), operações administrativas, ausência de credenciais na lista e invalidação de token após remover a conta.
+- A migration V2 foi validada no PostgreSQL local; Hibernate iniciou em modo de validação e não recriou o esquema de dispositivos.
+- A aplicação iniciou em `http://localhost:8080/` e o navegador exibiu a tela de login/cadastro. A integração MQTT permaneceu ligada durante a inicialização.
+- O banco de desenvolvimento manteve os dispositivos existentes. Dados de teste temporários são limpos pelos testes.
+
+#### Limites que continuam para etapas seguintes
+
+- Swagger/OpenAPI permanece para a Etapa 6.
+- Histórico persistido de comandos permanece para a etapa dedicada ao histórico; comando atual continua usando o endpoint existente de dispositivos.
+- Docker é opcional e permanece para a Etapa 7.
+
+### Etapa 5 — Implementar histórico de comandos
+
+- Avaliar se vale separar os comandos do `DeviceController` em `FanCommandController` sem alterar os tópicos MQTT.
 - Registrar cada solicitação de comando em `CommandRecord`.
 - Criar `CommandHistoryController` para consulta do histórico.
-- Manter os quatro controllers REST com responsabilidades claras, conforme o escopo aprovado.
+- Manter controllers REST com responsabilidades claras; a quantidade deve refletir as funções reais do MVP.
 
 **Entrega:** funcionalidades mínimas do MVP disponíveis por API.
 

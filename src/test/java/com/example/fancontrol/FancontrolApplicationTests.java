@@ -19,11 +19,11 @@ class FancontrolApplicationTests {
 	}
 
 	@Test
-	void flywayInitializesOrBaselinesTheDatabaseAtVersionOne() {
+	void flywayInitializesOrBaselinesTheDatabaseAtLatestVersion() {
 		var currentMigration = flyway.info().current();
 
 		assertNotNull(currentMigration);
-		assertEquals("1", currentMigration.getVersion().getVersion());
+		assertEquals("2", currentMigration.getVersion().getVersion());
 	}
 
 }
