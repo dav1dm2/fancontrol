@@ -2,7 +2,7 @@
 
 **Projeto:** Fan Control System
 **Documento:** escopo da AV2 revisado e aprovado na Etapa 1
-**Data:** 20 de outubro de 2026
+**Data:** 28 de outubro de 2026
 
 ## 1. Visão do projeto
 
@@ -10,7 +10,7 @@ O Fan Control System é uma aplicação central para cadastrar e monitorar dispo
 
 O projeto continua focado em dispositivos e ventiladores. Para a AV2, a proposta é acrescentar autenticação de operadores, histórico simples dos comandos, documentação da API e controle versionado do esquema do banco. A implementação deve permanecer pequena e adequada a uma demonstração acadêmica.
 
-## 2. Estado atual observado no repositório
+## 2. Estado inicial observado no repositório
 
 O código já contém:
 
@@ -198,7 +198,7 @@ Para reduzir complexidade, não proponho inicialmente:
 - JWT assinado com HS256, segredo configurado localmente, expiração de uma hora e autenticação sem sessão. O papel atual é carregado do banco em cada requisição; tokens de contas removidas deixam de funcionar imediatamente.
 - Regras de acesso: `USER` e `ADMIN` podem consultar todos os dispositivos; apenas `ADMIN` pode criar, editar, remover e comandar dispositivos, além de listar/remover usuários. O último administrador não pode ser removido.
 - O primeiro `ADMIN` é criado uma única vez a partir de `ADMIN_INITIAL_NAME` e `ADMIN_INITIAL_PASSWORD` no `.env` local. Os valores não são versionados. O `.env.example` contém somente nomes e exemplos não secretos.
-- A página HTML foi substituída por um painel responsivo em português, com login/cadastro, estado de sessão, lista de dispositivos, ações administrativas condicionais, lista de usuários sem credenciais e mensagens de erro. Cadastro público cria usuários apenas de consulta.
+- A página HTML foi substituída por um painel responsivo em inglês, com login/cadastro, estado de sessão, lista de dispositivos, ações administrativas condicionais, lista de usuários sem credenciais e mensagens de erro. Cadastro público cria usuários apenas de consulta.
 - Migration `V2__create_operator_users.sql` adiciona `app_users`, papel com restrição `ADMIN`/`USER` e índice de nome único sem diferenciar maiúsculas/minúsculas. A V1 e os dispositivos existentes foram preservados.
 - O formato JSON de erro do filtro de segurança foi implementado para respostas `401` e `403`.
 
@@ -252,6 +252,4 @@ Para reduzir complexidade, não proponho inicialmente:
 
 ## 8. Decisões já tomadas e observação de implementação
 
-As decisões de escopo acima foram confirmadas. O histórico de comandos será parte do MVP; a adaptação da página existente será necessária para que ela continue usando a API depois da ativação da autenticação.
-
-**Esta etapa alterou somente este documento de planejamento.** A implementação funcional começa na Etapa 2, depois desta aprovação do escopo.
+As decisões de escopo acima foram confirmadas. As Etapas 2, 3 e 4 foram implementadas e versionadas na branch `codex/av2-mvp`. O histórico de comandos continua sendo parte do MVP e será tratado na Etapa 5.
