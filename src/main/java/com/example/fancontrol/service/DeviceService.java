@@ -1,7 +1,10 @@
 package com.example.fancontrol.service;
 
+import com.example.fancontrol.dto.DeviceScheduleDto;
+import com.example.fancontrol.dto.ScheduleEntryDto;
 import com.example.fancontrol.exception.ApiException;
 import com.example.fancontrol.model.Device;
+import com.example.fancontrol.model.ScheduleMode;
 import com.example.fancontrol.model.Status;
 import com.example.fancontrol.repository.DeviceRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -49,6 +52,10 @@ public class DeviceService {
         device.setFanState(false);
         device.setStatus(Status.OFFLINE);
         device.setLastSeen(null);
+        device.setScheduleMode(ScheduleMode.MANUAL_OFF);
+        device.setAutoShutoffEnabled(false);
+        device.setAutoShutoffSeconds(300);
+        device.setWeeklySchedule("[]");
         return deviceRepository.save(device);
     }
 
@@ -75,6 +82,7 @@ public class DeviceService {
         if (device.getStatus() == Status.OFFLINE) {
             throw ApiException.conflict("Cannot control an offline device.");
         }
+        device.setScheduleMode(ScheduleMode.MANUAL_ON);
         publishCommand(device, true);
         device.setFanState(true);
         return deviceRepository.save(device);
@@ -82,9 +90,75 @@ public class DeviceService {
 
     public Device turnFanOff(int id) {
         Device device = findDeviceOrThrow(id);
+        device.setScheduleMode(ScheduleMode.MANUAL_OFF);
         publishCommand(device, false);
         device.setFanState(false);
         return deviceRepository.save(device);
+    }
+
+    public Device updateSchedule(int id, DeviceScheduleDto scheduleDto) {
+        Device device = findDeviceOrThrow(id);
+        if (scheduleDto == null) {
+            throw ApiException.badRequest("Schedule payload cannot be null.");
+        }
+        if (scheduleDto.mode() == null) {
+            throw ApiException.badRequest("Schedule mode is required.");
+        }
+        if (scheduleDto.autoShutoffSeconds() < 5) {
+            throw ApiException.badRequest("Auto-shutoff time must be at least 5 seconds.");
+        }
+
+        // Validate schedule entries
+        if (scheduleDto.weeklySchedule() != null) {
+            for (ScheduleEntryDto entry : scheduleDto.weeklySchedule()) {
+                if (entry.dayOfWeek() < 1 || entry.dayOfWeek() > 7) {
+                    throw ApiException.badRequest("Day of week must be between 1 (Monday) and 7 (Sunday).");
+                }
+                if (!isValidTime(entry.startTime()) || !isValidTime(entry.endTime())) {
+                    throw ApiException.badRequest("Times must be in valid HH:mm format (e.g. 08:30).");
+                }
+            }
+        }
+
+        String scheduleJson;
+        try {
+            scheduleJson = objectMapper.writeValueAsString(
+                    scheduleDto.weeklySchedule() != null ? scheduleDto.weeklySchedule() : List.of()
+            );
+        } catch (Exception e) {
+            throw ApiException.badRequest("Failed to serialize weekly schedule.");
+        }
+
+        device.setScheduleMode(scheduleDto.mode());
+        device.setAutoShutoffEnabled(scheduleDto.autoShutoffEnabled());
+        device.setAutoShutoffSeconds(scheduleDto.autoShutoffSeconds());
+        device.setWeeklySchedule(scheduleJson);
+
+        Device saved = deviceRepository.save(device);
+        publishScheduleConfig(saved, scheduleDto);
+        return saved;
+    }
+
+    private boolean isValidTime(String time) {
+        if (time == null || !time.matches("^([01]\\d|2[0-3]):[0-5]\\d$")) {
+            return false;
+        }
+        return true;
+    }
+
+    private void publishScheduleConfig(Device device, DeviceScheduleDto scheduleDto) {
+        try {
+            String payload = objectMapper.writeValueAsString(scheduleDto);
+            mqttOutboundChannel.send(
+                    MessageBuilder.withPayload(payload)
+                            .setHeader(MqttHeaders.TOPIC, "fan/" + device.getName() + "/config")
+                            .setHeader(MqttHeaders.QOS, 1)
+                            .setHeader(MqttHeaders.RETAINED, true)
+                            .build()
+            );
+        } catch (Exception e) {
+            throw ApiException.serviceUnavailable("Failed to send schedule configuration to MQTT broker.");
+        }
     }
 
     private void publishCommand(Device device, boolean fanOn) {
@@ -136,10 +210,32 @@ public class DeviceService {
             return;
         }
         System.out.println(">>> found device id=" + d.getId() + " name='" + d.getName() + "'");
+        boolean wasOffline = (d.getStatus() == Status.OFFLINE);
         d.setStatus(Status.ONLINE);
         d.setLastSeen(LocalDateTime.now());
-        deviceRepository.save(d);
+        Device saved = deviceRepository.save(d);
         System.out.println(">>> saved device as ONLINE");
+
+        if (wasOffline) {
+            syncScheduleToDevice(saved);
+        }
+    }
+
+    public void syncScheduleToDevice(Device device) {
+        List<ScheduleEntryDto> entries = List.of();
+        if (device.getWeeklySchedule() != null && !device.getWeeklySchedule().isBlank()) {
+            try {
+                entries = objectMapper.readValue(device.getWeeklySchedule(), new com.fasterxml.jackson.core.type.TypeReference<List<ScheduleEntryDto>>() {});
+            } catch (Exception ignored) {
+            }
+        }
+        DeviceScheduleDto dto = new DeviceScheduleDto(
+                device.getScheduleMode(),
+                device.isAutoShutoffEnabled(),
+                device.getAutoShutoffSeconds(),
+                entries
+        );
+        publishScheduleConfig(device, dto);
     }
 
     public void onMotion(String deviceName) {

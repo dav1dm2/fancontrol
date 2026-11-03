@@ -228,4 +228,26 @@ class DeviceServiceTest {
 
         assertEquals(404, exception.getStatus().value());
     }
+
+    @Test
+    void updateSchedule_validConfig_savesAndPublishesToMqtt() throws Exception {
+        when(deviceRepository.findById(1)).thenReturn(Optional.of(sampleDevice));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{\"mode\":\"SCHEDULED\"}");
+        when(deviceRepository.save(sampleDevice)).thenReturn(sampleDevice);
+
+        com.example.fancontrol.dto.DeviceScheduleDto dto = new com.example.fancontrol.dto.DeviceScheduleDto(
+                com.example.fancontrol.model.ScheduleMode.SCHEDULED,
+                true,
+                180,
+                List.of(new com.example.fancontrol.dto.ScheduleEntryDto(1, "08:00", "18:00"))
+        );
+
+        Device updated = deviceService.updateSchedule(1, dto);
+
+        assertEquals(com.example.fancontrol.model.ScheduleMode.SCHEDULED, updated.getScheduleMode());
+        assertTrue(updated.isAutoShutoffEnabled());
+        assertEquals(180, updated.getAutoShutoffSeconds());
+        verify(mqttOutboundChannel).send(any(Message.class));
+        verify(deviceRepository).save(sampleDevice);
+    }
 }

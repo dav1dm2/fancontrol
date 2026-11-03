@@ -3,44 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fan Control</title>
+    <title>Fan Control System</title>
     <style>
-        :root { color-scheme: light; font-family: Arial, sans-serif; color: #17212b; background: #f3f6f8; }
+        :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #17212b; background: #f3f6f8; }
         * { box-sizing: border-box; }
         body { margin: 0; padding: 24px; }
         main { width: min(1100px, 100%); margin: 0 auto; }
         header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin: 0 auto 24px; width: min(1100px, 100%); }
         h1 { margin: 0 0 6px; font-size: clamp(1.5rem, 4vw, 2rem); }
         h2 { margin: 0 0 16px; font-size: 1.2rem; }
-        p { line-height: 1.5; }
+        h3 { margin: 0 0 8px; }
+        h4 { margin: 12px 0 6px; font-size: 1rem; color: #374151; }
+        p { line-height: 1.5; margin: 6px 0; }
         .subtitle, .muted { color: #5b6873; }
         .panel, .device { background: #fff; border: 1px solid #dce3e8; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px #17212b0a; }
         .panel { margin-bottom: 20px; }
         .auth-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px; }
-        .field { display: grid; gap: 6px; margin-bottom: 14px; }
-        input { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #aab6bf; border-radius: 7px; font: inherit; }
-        input:focus, button:focus-visible { outline: 3px solid #89baf2; outline-offset: 2px; }
-        button { min-height: 40px; border: 0; border-radius: 7px; padding: 9px 14px; background: #175cd3; color: white; font: inherit; font-weight: 600; cursor: pointer; }
+        .field { display: grid; gap: 6px; margin-bottom: 14px; font-weight: 500; font-size: 0.95rem; }
+        input, select { width: 100%; min-height: 40px; padding: 8px 11px; border: 1px solid #aab6bf; border-radius: 7px; font: inherit; background: #fff; }
+        input:focus, select:focus, button:focus-visible { outline: 3px solid #89baf2; outline-offset: 2px; }
+        button { min-height: 38px; border: 0; border-radius: 7px; padding: 8px 14px; background: #175cd3; color: white; font: inherit; font-weight: 600; cursor: pointer; transition: background 0.15s; }
         button:hover { background: #1249a8; }
         button.secondary { background: #e8edf2; color: #17212b; }
         button.secondary:hover { background: #dce3e8; }
         button.danger { background: #b42318; }
         button.danger:hover { background: #912018; }
+        button.accent { background: #087443; }
+        button.accent:hover { background: #065934; }
         .header-actions, .device-actions, .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
         .toolbar { justify-content: space-between; margin-bottom: 14px; }
-        #devices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 16px; }
-        .device h3 { margin: 0 0 12px; overflow-wrap: anywhere; }
-        .device p { margin: 8px 0; overflow-wrap: anywhere; }
-        .device-actions { margin-top: 14px; }
-        .device-actions button { flex: 1 1 auto; }
-        .status { font-weight: 700; }
+        #devices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 18px; }
+        .device { display: flex; flex-direction: column; justify-content: space-between; }
+        .device h3 { margin: 0 0 10px; overflow-wrap: anywhere; }
+        .status { font-weight: 700; padding: 2px 8px; border-radius: 6px; font-size: 0.85rem; }
+        .status.online { background: #dcfce7; color: #15803d; }
+        .status.offline { background: #fee2e2; color: #b91c1c; }
+        .mode-badge { font-weight: 600; padding: 2px 8px; border-radius: 6px; font-size: 0.85rem; background: #e0e7ff; color: #3730a3; }
+        .schedule-box { margin-top: 14px; padding-top: 14px; border-top: 1px solid #e5e9ed; background: #fbfcfd; border-radius: 8px; padding: 12px; }
+        .schedule-entry { display: flex; align-items: center; justify-content: space-between; padding: 4px 0; font-size: 0.9rem; border-bottom: 1px dashed #e2e8f0; }
+        .schedule-entry:last-child { border-bottom: none; }
         #users { list-style: none; padding: 0; margin: 0; }
         #users li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid #e5e9ed; }
         #users li:last-child { border-bottom: 0; }
-        #message { min-height: 1.5em; margin: 0 0 12px; }
+        #message { min-height: 1.5em; margin: 0 0 12px; font-weight: 500; }
         .error { color: #b42318; }
         .success { color: #137333; }
         [hidden] { display: none !important; }
+
+        /* Modal Styles */
+        dialog { border: none; border-radius: 14px; padding: 24px; max-width: 500px; width: 90%; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        dialog::backdrop { background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(2px); }
+        .dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+        .day-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 10px 0; }
+
         @media (max-width: 520px) {
             body { padding: 14px; }
             header { align-items: flex-start; }
@@ -53,7 +69,7 @@
 <header>
     <div>
         <h1>Fan Control</h1>
-        <p class="subtitle">Centralized device monitoring</p>
+        <p class="subtitle">Centralized device monitoring & schedule automation</p>
     </div>
     <div id="accountBar" class="header-actions" hidden>
         <span id="accountLabel"></span>
@@ -63,6 +79,8 @@
 
 <main>
     <p id="message" role="status" aria-live="polite"></p>
+
+    <!-- Autenticação -->
     <section id="authPanel" class="auth-grid" aria-label="System access">
         <form id="loginForm" class="panel">
             <h2>Sign in</h2>
@@ -88,26 +106,30 @@
         </form>
     </section>
 
+    <!-- Aplicação Principal -->
     <section id="appPanel" hidden>
+        <!-- Painel Adicionar Dispositivo (Admin) -->
         <section id="adminDevicePanel" class="panel" hidden>
             <h2>Add a device</h2>
             <form id="addDeviceForm" class="header-actions">
                 <label class="field" style="flex:1; min-width: min(100%, 220px); margin:0">
                     <span class="muted">Device name</span>
-                    <input name="name" required maxlength="255" placeholder="e.g. living-room-fan">
+                    <input name="name" required maxlength="255" placeholder="e.g. garage2">
                 </label>
                 <button type="submit">Add device</button>
             </form>
         </section>
 
+        <!-- Lista de Dispositivos -->
         <section class="panel">
             <div class="toolbar">
-                <h2 style="margin:0">Devices</h2>
+                <h2 style="margin:0">Connected Devices</h2>
                 <button id="refreshButton" class="secondary" type="button">Refresh list</button>
             </div>
             <div id="devices" aria-live="polite"><p>Loading...</p></div>
         </section>
 
+        <!-- Painel de Usuários (Admin) -->
         <section id="adminUsersPanel" class="panel" hidden>
             <div class="toolbar">
                 <div>
@@ -121,10 +143,67 @@
     </section>
 </main>
 
+<!-- Modal de Programação Semanal e Auto-Shutoff -->
+<dialog id="scheduleModal">
+    <div class="dialog-header">
+        <h3 id="modalDeviceTitle" style="margin:0">Configure Automation</h3>
+        <button type="button" class="secondary" id="closeModalBtn" style="min-height:auto; padding:4px 8px;">✕</button>
+    </div>
+    <form id="scheduleForm">
+        <input type="hidden" id="modalDeviceId" name="deviceId">
+
+        <label class="field">Operation Mode
+            <select id="modalMode" name="mode">
+                <option value="SCHEDULED">SCHEDULED (Follow Weekly Schedule)</option>
+                <option value="MANUAL_ON">MANUAL_ON (Force Fan On)</option>
+                <option value="MANUAL_OFF">MANUAL_OFF (Force Fan Off)</option>
+            </select>
+        </label>
+
+        <div style="margin: 16px 0; padding: 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;">
+            <label style="display:flex; align-items:center; gap:8px; font-weight:600; cursor:pointer;">
+                <input type="checkbox" id="modalAutoShutoffEnabled" name="autoShutoffEnabled" style="width:18px; min-height:18px;">
+                Enable Motion Auto-Shutoff
+            </label>
+            <p class="muted" style="font-size:0.85rem; margin:6px 0 10px;">
+                Turns the fan off after absence of motion, even inside scheduled hours. Relumes on new motion.
+            </p>
+            <label class="field" style="margin-bottom:0">Inactivity Timeout (seconds)
+                <input type="number" id="modalAutoShutoffSeconds" name="autoShutoffSeconds" min="5" max="86400" value="300">
+            </label>
+        </div>
+
+        <h4 style="margin-bottom:4px;">Weekly Schedule Windows (Mon - Sun)</h4>
+        <p class="muted" style="font-size:0.85rem; margin-top:0;">Define active hours for each day of the week.</p>
+
+        <div id="scheduleEntriesContainer" style="max-height: 200px; overflow-y: auto; margin-bottom: 12px; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px;">
+            <!-- Linhas de agendamento inseridas dinamicamente -->
+        </div>
+
+        <button type="button" id="addScheduleRowBtn" class="secondary" style="width:100%; margin-bottom:14px;">+ Add Schedule Window</button>
+
+        <div class="dialog-actions">
+            <button type="button" class="secondary" id="cancelModalBtn">Cancel</button>
+            <button type="submit" class="accent">Save & Deploy to Device</button>
+        </div>
+    </form>
+</dialog>
+
 <script>
     const tokenStorageKey = "fancontrol.accessToken";
     let accessToken = localStorage.getItem(tokenStorageKey);
     let currentUser = null;
+    let loadedDevicesMap = {};
+
+    const DAY_NAMES = {
+        1: "Monday",
+        2: "Tuesday",
+        3: "Wednesday",
+        4: "Thursday",
+        5: "Friday",
+        6: "Saturday",
+        7: "Sunday"
+    };
 
     async function api(path, options = {}) {
         const headers = new Headers(options.headers || {});
@@ -258,15 +337,19 @@
                 const name = card.querySelector("input[name='newName']").value.trim();
                 await api(`/api/devices/${id}`, { method: "PUT", body: JSON.stringify({ name }) });
                 showMessage("Device name updated.");
+                await loadDevices();
             } else if (action === "delete") {
                 if (!confirm("Remove this device?")) return;
                 await api(`/api/devices/${id}`, { method: "DELETE" });
                 showMessage("Device removed.");
+                await loadDevices();
             } else if (action === "on" || action === "off") {
                 await api(`/api/devices/${id}/fan/${action}`, { method: "POST" });
                 showMessage("Command sent.");
+                await loadDevices();
+            } else if (action === "schedule") {
+                openScheduleModal(Number(id));
             }
-            await loadDevices();
         } catch (error) {
             showMessage(error.message, true);
         }
@@ -296,32 +379,64 @@
         try {
             const devices = await api("/api/devices");
             const container = document.getElementById("devices");
+            loadedDevicesMap = {};
+
             if (devices.length === 0) {
                 container.innerHTML = '<p class="muted">No devices have been added.</p>';
                 return;
             }
+
             const isAdmin = currentUser && currentUser.role === "ADMIN";
-            container.innerHTML = devices.map(device => `
-                <article class="device" data-device-id="${device.id}">
-                    <h3>${escapeHtml(device.name)}</h3>
-                    <p><strong>ID:</strong> ${device.id}</p>
-                    <p><strong>Status:</strong> <span class="status">${escapeHtml(device.status)}</span></p>
-                    <p><strong>Fan:</strong> ${device.fanState ? "On" : "Off"}</p>
-                    <p><strong>Last sensor activation:</strong> ${escapeHtml(device.lastSensorActivation ?? "Never")}</p>
-                    <p><strong>Last communication:</strong> ${escapeHtml(device.lastSeen ?? "Never")}</p>
-                    ${isAdmin ? `
-                        <label class="field">Device name
-                            <input name="newName" value="${escapeHtml(device.name)}" maxlength="255" aria-label="New name for ${escapeHtml(device.name)}">
-                        </label>
-                        <div class="device-actions">
-                            <button data-action="rename" data-id="${device.id}" type="button">Save name</button>
-                            <button data-action="on" data-id="${device.id}" type="button">Turn on</button>
-                            <button data-action="off" data-id="${device.id}" type="button" class="secondary">Turn off</button>
-                            <button data-action="delete" data-id="${device.id}" type="button" class="danger">Remove</button>
+            container.innerHTML = devices.map(device => {
+                loadedDevicesMap[device.id] = device;
+                const statusClass = device.status.toLowerCase();
+                const scheduleList = (device.weeklySchedule && device.weeklySchedule.length > 0)
+                    ? device.weeklySchedule.map(s => `
+                        <div class="schedule-entry">
+                            <span><strong>${DAY_NAMES[s.dayOfWeek] || 'Day ' + s.dayOfWeek}:</strong></span>
+                            <span>${escapeHtml(s.startTime)} - ${escapeHtml(s.endTime)}</span>
                         </div>
-                    ` : ""}
+                    `).join("")
+                    : '<p class="muted" style="font-size:0.85rem; margin:0">No active schedule configured.</p>';
+
+                return `
+                <article class="device" data-device-id="${device.id}">
+                    <div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                            <h3 style="margin:0">${escapeHtml(device.name)}</h3>
+                            <span class="status ${statusClass}">${escapeHtml(device.status)}</span>
+                        </div>
+                        <p><strong>Fan State:</strong> ${device.fanState ? "⚡ ON" : "⚪ OFF"}</p>
+                        <p><strong>Mode:</strong> <span class="mode-badge">${escapeHtml(device.scheduleMode || 'MANUAL_OFF')}</span></p>
+                        <p><strong>Auto-Shutoff:</strong> ${device.autoShutoffEnabled ? `Enabled (${device.autoShutoffSeconds}s)` : "Disabled"}</p>
+                        <p><strong>Last Motion:</strong> ${escapeHtml(device.lastSensorActivation ?? "Never")}</p>
+                        <p><strong>Last Communication:</strong> ${escapeHtml(device.lastSeen ?? "Never")}</p>
+
+                        <div class="schedule-box">
+                            <strong style="font-size:0.85rem; display:block; margin-bottom:6px; color:#475569;">Weekly Schedule:</strong>
+                            ${scheduleList}
+                        </div>
+                    </div>
+
+                    <div style="margin-top:14px;">
+                        ${isAdmin ? `
+                            <label class="field" style="margin-bottom:8px">Edit name
+                                <input name="newName" value="${escapeHtml(device.name)}" maxlength="255" aria-label="New name for ${escapeHtml(device.name)}">
+                            </label>
+                            <div class="device-actions" style="margin-bottom:6px;">
+                                <button data-action="rename" data-id="${device.id}" type="button" class="secondary" style="font-size:0.85rem;">Save Name</button>
+                                <button data-action="on" data-id="${device.id}" type="button" style="font-size:0.85rem;">Turn On</button>
+                                <button data-action="off" data-id="${device.id}" type="button" class="secondary" style="font-size:0.85rem;">Turn Off</button>
+                            </div>
+                            <div class="device-actions">
+                                <button data-action="schedule" data-id="${device.id}" type="button" class="accent" style="flex:2; font-size:0.85rem;">📅 Schedule & Auto-Shutoff</button>
+                                <button data-action="delete" data-id="${device.id}" type="button" class="danger" style="flex:1; font-size:0.85rem;">Delete</button>
+                            </div>
+                        ` : ""}
+                    </div>
                 </article>
-            `).join("");
+                `;
+            }).join("");
         } catch (error) {
             showMessage(error.message, true);
         }
@@ -345,6 +460,92 @@
             showMessage(error.message, true);
         }
     }
+
+    // Modal de Programação
+    const scheduleModal = document.getElementById("scheduleModal");
+    const scheduleEntriesContainer = document.getElementById("scheduleEntriesContainer");
+
+    function openScheduleModal(deviceId) {
+        const device = loadedDevicesMap[deviceId];
+        if (!device) return;
+
+        document.getElementById("modalDeviceId").value = device.id;
+        document.getElementById("modalDeviceTitle").textContent = `Configure ${device.name}`;
+        document.getElementById("modalMode").value = device.scheduleMode || "SCHEDULED";
+        document.getElementById("modalAutoShutoffEnabled").checked = !!device.autoShutoffEnabled;
+        document.getElementById("modalAutoShutoffSeconds").value = device.autoShutoffSeconds || 300;
+
+        scheduleEntriesContainer.innerHTML = "";
+        const entries = device.weeklySchedule || [];
+        if (entries.length === 0) {
+            addScheduleRow(1, "08:00", "18:00");
+        } else {
+            entries.forEach(e => addScheduleRow(e.dayOfWeek, e.startTime, e.endTime));
+        }
+
+        scheduleModal.showModal();
+    }
+
+    function addScheduleRow(day = 1, start = "08:00", end = "18:00") {
+        const row = document.createElement("div");
+        row.className = "schedule-row";
+        row.style.cssText = "display:flex; gap:8px; align-items:center; margin-bottom:6px;";
+        row.innerHTML = `
+            <select name="rowDay" style="flex:1.5;">
+                ${Object.entries(DAY_NAMES).map(([val, name]) => `
+                    <option value="${val}" ${val == day ? "selected" : ""}>${name}</option>
+                `).join("")}
+            </select>
+            <input type="time" name="rowStart" value="${escapeHtml(start)}" required style="flex:1;">
+            <span>to</span>
+            <input type="time" name="rowEnd" value="${escapeHtml(end)}" required style="flex:1;">
+            <button type="button" class="secondary remove-row-btn" style="min-height:auto; padding:4px 8px; color:#b42318;">✕</button>
+        `;
+        row.querySelector(".remove-row-btn").addEventListener("click", () => row.remove());
+        scheduleEntriesContainer.appendChild(row);
+    }
+
+    document.getElementById("addScheduleRowBtn").addEventListener("click", () => addScheduleRow());
+    document.getElementById("closeModalBtn").addEventListener("click", () => scheduleModal.close());
+    document.getElementById("cancelModalBtn").addEventListener("click", () => scheduleModal.close());
+
+    document.getElementById("scheduleForm").addEventListener("submit", async event => {
+        event.preventDefault();
+        const deviceId = document.getElementById("modalDeviceId").value;
+        const mode = document.getElementById("modalMode").value;
+        const autoShutoffEnabled = document.getElementById("modalAutoShutoffEnabled").checked;
+        const autoShutoffSeconds = Number(document.getElementById("modalAutoShutoffSeconds").value);
+
+        const rows = scheduleEntriesContainer.querySelectorAll(".schedule-row");
+        const weeklySchedule = [];
+        rows.forEach(r => {
+            const dayOfWeek = Number(r.querySelector('[name="rowDay"]').value);
+            const startTime = r.querySelector('[name="rowStart"]').value;
+            const endTime = r.querySelector('[name="rowEnd"]').value;
+            if (startTime && endTime) {
+                weeklySchedule.push({ dayOfWeek, startTime, endTime });
+            }
+        });
+
+        const payload = {
+            mode,
+            autoShutoffEnabled,
+            autoShutoffSeconds,
+            weeklySchedule
+        };
+
+        try {
+            await api(`/api/devices/${deviceId}/schedule`, {
+                method: "PUT",
+                body: JSON.stringify(payload)
+            });
+            scheduleModal.close();
+            showMessage("Schedule configuration deployed successfully to the device.");
+            await loadDevices();
+        } catch (error) {
+            showMessage(error.message, true);
+        }
+    });
 
     function escapeHtml(value) {
         return String(value).replace(/[&<>"']/g, character => ({

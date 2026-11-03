@@ -1,5 +1,7 @@
 # Proposta de escopo e plano de implementação — AV2
 
+> **Documento histórico de planejamento.** Ele registra as decisões tomadas durante as etapas iniciais da AV2. Para a descrição atual do sistema, consulte o [README](../README.md) e a [visão técnica](project-current-state.md).
+
 **Projeto:** Fan Control System
 **Documento:** escopo da AV2 revisado e aprovado na Etapa 1
 **Data:** 28 de outubro de 2026

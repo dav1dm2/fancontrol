@@ -3,6 +3,7 @@ package com.example.fancontrol.controller;
 import com.example.fancontrol.config.OpenApiConfig;
 import com.example.fancontrol.dto.DeviceRequest;
 import com.example.fancontrol.dto.DeviceResponse;
+import com.example.fancontrol.dto.DeviceScheduleDto;
 import com.example.fancontrol.exception.ApiErrorResponse;
 import com.example.fancontrol.mapper.DeviceMapper;
 import com.example.fancontrol.model.Device;
@@ -171,5 +172,29 @@ public class DeviceController {
             @PathVariable int id
     ) {
         return deviceMapper.toResponse(deviceService.turnFanOff(id));
+    }
+
+    @PutMapping("/{id}/schedule")
+    @Operation(summary = "Configurar agendamento e automação", description = "Configura a programação semanal, modo de funcionamento e tempo de auto-shutoff do dispositivo. Requer perfil ADMIN.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Agendamento atualizado com sucesso",
+                    content = @Content(schema = @Schema(implementation = DeviceResponse.class))),
+            @ApiResponse(responseCode = "400", description = "Parâmetros de agendamento ou horários inválidos",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "401", description = "Não autenticado",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "403", description = "Acesso negado (requer perfil ADMIN)",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "404", description = "Dispositivo não encontrado",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class))),
+            @ApiResponse(responseCode = "503", description = "Falha de comunicação com o broker MQTT",
+                    content = @Content(schema = @Schema(implementation = ApiErrorResponse.class)))
+    })
+    public DeviceResponse updateSchedule(
+            @Parameter(description = "Identificador único do dispositivo", example = "1")
+            @PathVariable int id,
+            @RequestBody DeviceScheduleDto scheduleDto
+    ) {
+        return deviceMapper.toResponse(deviceService.updateSchedule(id, scheduleDto));
     }
 }

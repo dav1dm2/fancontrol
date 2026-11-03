@@ -28,4 +28,17 @@ public class Device {
     private LocalDateTime lastSensorActivation;
 
     private LocalDateTime lastSeen;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ScheduleMode scheduleMode = ScheduleMode.MANUAL_OFF;
+
+    @Column(nullable = false)
+    private boolean autoShutoffEnabled = false;
+
+    @Column(nullable = false)
+    private int autoShutoffSeconds = 300;
+
+    @Column(columnDefinition = "TEXT")
+    private String weeklySchedule;
 }

@@ -23,7 +23,7 @@ class FancontrolApplicationTests {
 		var currentMigration = flyway.info().current();
 
 		assertNotNull(currentMigration);
-		assertEquals("2", currentMigration.getVersion().getVersion());
+		assertEquals("3", currentMigration.getVersion().getVersion());
 	}
 
 }

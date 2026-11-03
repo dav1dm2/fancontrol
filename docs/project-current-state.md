@@ -1,7 +1,6 @@
-# Fan Control System — Estado atual do projeto
+# Fan Control System — Visão técnica
 
-**Data da revisão:** 3 de novembro de 2026<br>
-**Estado analisado:** branch `feature/device-scheduling-firmware`
+Este documento descreve a arquitetura, os recursos e a comunicação entre as partes do Fan Control System.
 
 ## 1. Objetivo do sistema
 
@@ -9,15 +8,7 @@ O Fan Control System centraliza o monitoramento e o controle de ventiladores lig
 
 O dispositivo ESP32 é responsável pela leitura do sensor PIR, acionamento do relé, execução local da automação e comunicação com o broker MQTT. A aplicação central mantém o cadastro, o estado observado e as configurações desejadas.
 
-## 2. Estado de versionamento e escopo atual
-
-- A implementação de autenticação, JWT, Flyway e a interface inicial foi concluída anteriormente.
-- Swagger/OpenAPI foi adicionado no commit `edb3f7d`.
-- Há uma continuação local ainda não commitada: agendamento semanal, desligamento automático por inatividade e firmware ESP32 correspondente.
-- A compilação Maven do estado atual foi executada com sucesso em 3 de novembro de 2026 usando `./mvnw -DskipTests compile`.
-- A migration V3 e o firmware ainda precisam de validação integrada contra o PostgreSQL, broker MQTT e uma placa ESP32 antes de serem considerados concluídos.
-
-## 3. Arquitetura e organização MVC
+## 2. Arquitetura e organização MVC
 
 O backend usa Spring Boot com uma separação compatível com MVC:
 
@@ -42,7 +33,7 @@ O backend usa Spring Boot com uma separação compatível com MVC:
 
 O projeto já possui mais de um controller REST por responsabilidades reais. Não há necessidade técnica de criar controllers artificiais apenas para aumentar a quantidade.
 
-## 4. Domínio e persistência
+## 3. Domínio e persistência
 
 ### Dispositivo (`Device`)
 
@@ -74,9 +65,9 @@ O Hibernate está configurado com `ddl-auto=validate`: ele valida as entidades, 
 |---|---|
 | `V1__create_devices_table.sql` | Cria a tabela de dispositivos e a restrição de status. |
 | `V2__create_operator_users.sql` | Cria usuários, papéis e índice de nome único sem diferenciar maiúsculas/minúsculas. |
-| `V3__add_device_schedule_and_automation.sql` | Adiciona os campos de modo, auto-shutoff e agenda semanal aos dispositivos. Está presente no diretório local e ainda faz parte da continuação não commitada. |
+| `V3__add_device_schedule_and_automation.sql` | Adiciona os campos de modo, auto-shutoff e agenda semanal aos dispositivos. |
 
-## 5. API REST atual
+## 4. API REST
 
 ### Autenticação
 
@@ -106,7 +97,7 @@ O Hibernate está configurado com `ddl-auto=validate`: ele valida as entidades, 
 | `GET /api/users` | `ADMIN` | Lista somente identificador e nome das contas. |
 | `DELETE /api/users/{id}` | `ADMIN` | Remove uma conta, exceto o último administrador. |
 
-## 6. Segurança: Spring Security e JWT
+## 5. Segurança: Spring Security e JWT
 
 O sistema usa Spring Security sem sessão no servidor. No login, a senha recebida é comparada ao hash BCrypt armazenado no PostgreSQL. Quando a autenticação é válida, a aplicação emite um JWT assinado com HS256, usando o segredo local `JWT_SECRET`.
 
@@ -122,7 +113,7 @@ Rotas públicas: página inicial, cadastro, login, especificação OpenAPI e Swa
 
 Configurações privadas — banco, segredo JWT e administrador inicial — ficam em `.env`, que é ignorado pelo Git. O arquivo `.env.example` contém apenas exemplos.
 
-## 7. Integração MQTT
+## 6. Integração MQTT
 
 O broker MQTT é configurado pela variável `MQTT_BROKER_URL`. O backend usa Spring Integration MQTT e QoS 1 para as trocas principais.
 
@@ -146,7 +137,7 @@ Um agendador Spring executa a cada 10 segundos. Quando o último sinal ultrapass
 
 Ao receber um heartbeat de um dispositivo que estava offline, o backend monta a configuração persistida e a publica novamente em `fan/{deviceName}/config`.
 
-## 8. Firmware ESP32 em continuação
+## 7. Firmware ESP32
 
 O diretório `firmware-esp32/` contém um projeto PlatformIO para `esp32dev`, usando Arduino, PubSubClient e ArduinoJson.
 
@@ -164,18 +155,18 @@ O firmware:
 
 Os comandos manuais alteram o modo para `MANUAL_ON` ou `MANUAL_OFF`. O modo `SCHEDULED` é aplicado localmente pelo ESP32, o que permite que a agenda continue funcionando mesmo se o backend estiver temporariamente indisponível depois de a configuração ter sido recebida.
 
-## 9. Interface web
+## 8. Interface web
 
 A página principal é uma interface única responsiva em inglês.
 
 - Sem sessão, apresenta login e cadastro.
 - `USER` visualiza os dispositivos.
 - `ADMIN` também pode adicionar, renomear, remover, ligar e desligar dispositivos, além de listar e remover usuários.
-- A continuação local adiciona cartões com modo, estado, agenda e auto-shutoff, além de um modal para configurar a automação.
+- Os cartões exibem modo, estado, agenda e auto-shutoff, e um modal permite configurar a automação.
 
 O navegador inclui o JWT nas chamadas da API. A interface melhora a experiência, mas as regras decisivas são aplicadas novamente no backend pelo Spring Security.
 
-## 10. Swagger / OpenAPI
+## 9. Swagger / OpenAPI
 
 Swagger/OpenAPI foi implementado com `springdoc-openapi`.
 
@@ -184,35 +175,4 @@ Swagger/OpenAPI foi implementado com `springdoc-openapi`.
 - O Swagger UI é público, enquanto as chamadas de negócio continuam protegidas.
 - A documentação pode ser acessada pela aplicação em `/swagger-ui/index.html`.
 
-Há um teste dedicado que verifica se o OpenAPI declara título, esquema Bearer e os endpoints principais.
-
-## 11. Testes e verificações conhecidas
-
-O repositório contém:
-
-- testes unitários de `DeviceService`;
-- testes MVC de `DeviceController`;
-- testes de integração de segurança para JWT, papéis e remoção de contas;
-- teste de contexto/Flyway;
-- teste de documentação OpenAPI.
-
-A última verificação desta revisão compilou o código principal com sucesso. A suíte completa e o teste físico do firmware não foram executados nesta revisão, pois a implementação de agenda ainda está local e sua migration pode alterar o banco de desenvolvimento.
-
-## 12. Pontos a decidir ou validar antes de considerar a continuação concluída
-
-Estes itens foram identificados na revisão e não foram alterados:
-
-1. **Credenciais no firmware:** SSID, senha Wi-Fi e endereço do broker estão escritos diretamente em `firmware-esp32/src/main.cpp`. O firmware não deve ser enviado ao GitHub com dados reais; uma configuração local ignorada pelo Git será necessária antes do commit.
-2. **Limites da agenda:** o firmware aceita no máximo 14 janelas semanais, mas a API ainda não limita a quantidade. A API também valida o formato das horas, porém não valida se o fim ocorre depois do início nem impede janelas sobrepostas.
-3. **Entrega da configuração:** a configuração é salva no banco antes da publicação MQTT. Se o broker falhar, a API retorna erro, mas a configuração já pode estar persistida e será reenviada no próximo heartbeat. É preciso decidir se esse comportamento eventual é o desejado para a apresentação.
-4. **Nomes usados em tópicos MQTT:** o nome do dispositivo forma parte do tópico. A validação atual aceita qualquer texto não vazio; restringir nomes a caracteres seguros para tópicos evitaria espaços, barras e curingas acidentais.
-5. **Datas JSON:** `DeviceResponse` contém `LocalDateTime`, enquanto existe um `ObjectMapper` criado manualmente em `JacksonConfig`. Convém testar uma resposta com datas preenchidas para confirmar a serialização correta de Java Time.
-6. **Idioma da documentação:** o painel está em inglês, mas as descrições Swagger continuam em português. Isso não impede o funcionamento; é apenas uma decisão de consistência visual a tomar.
-7. **Histórico de comandos:** foi deliberadamente adiado. Ele seria uma evolução de auditoria, não uma dependência para o controle atual funcionar.
-8. **Docker:** permanece opcional e ainda não está presente.
-
-## 13. Síntese
-
-O projeto atual já atende à base técnica da AV2: API MVC, DTOs, mapper, JPA/PostgreSQL, exceções HTTP, Flyway, autenticação JWT com Spring Security, múltiplos controllers, MQTT, painel web e Swagger/OpenAPI.
-
-A funcionalidade de automação representa uma expansão coerente do domínio original. Ela está em uma etapa local de integração: compila, possui migration e firmware correspondente, mas ainda precisa ser validada ponta a ponta e versionada de forma segura.
+O projeto inclui testes unitários de regras de dispositivos, testes MVC das respostas HTTP, testes de integração de segurança e Flyway, além de um teste da especificação OpenAPI.

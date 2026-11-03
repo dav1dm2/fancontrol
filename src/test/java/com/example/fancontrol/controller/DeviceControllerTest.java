@@ -34,7 +34,7 @@ class DeviceControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new DeviceController(deviceService, new DeviceMapper()))
+                .standaloneSetup(new DeviceController(deviceService, new DeviceMapper(new com.fasterxml.jackson.databind.ObjectMapper())))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
 
@@ -43,6 +43,10 @@ class DeviceControllerTest {
         sampleDevice.setName("Living Room Fan");
         sampleDevice.setStatus(Status.ONLINE);
         sampleDevice.setFanState(true);
+        sampleDevice.setScheduleMode(com.example.fancontrol.model.ScheduleMode.MANUAL_ON);
+        sampleDevice.setAutoShutoffEnabled(false);
+        sampleDevice.setAutoShutoffSeconds(300);
+        sampleDevice.setWeeklySchedule("[]");
     }
 
     @Test
@@ -142,5 +146,26 @@ class DeviceControllerTest {
                 .andExpect(status().isNoContent());
 
         verify(deviceService).removeDevice(1);
+    }
+
+    @Test
+    void updateSchedule_returnsUpdatedDevice() throws Exception {
+        when(deviceService.updateSchedule(eq(1), any())).thenReturn(sampleDevice);
+
+        mockMvc.perform(put("/api/devices/1/schedule")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "mode": "SCHEDULED",
+                                  "autoShutoffEnabled": true,
+                                  "autoShutoffSeconds": 300,
+                                  "weeklySchedule": [
+                                    { "dayOfWeek": 1, "startTime": "08:00", "endTime": "18:00" }
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.scheduleMode").value("MANUAL_ON"));
     }
 }
