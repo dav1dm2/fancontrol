@@ -1,26 +1,12 @@
 # Fan Control System
 
-Sistema centralizado para monitorar e controlar ventiladores conectados a dispositivos ESP32. O projeto une uma API Spring Boot, PostgreSQL, Mosquitto MQTT, painel web, autenticação JWT e firmware para ESP32 com sensor PIR e relé.
+O Fan Control System centraliza o monitoramento e o controle de ventiladores ligados a microcontroladores ESP32. A aplicação reúne uma API REST em Spring Boot, painel web, PostgreSQL, MQTT e firmware embarcado para que um operador acompanhe dispositivos e administre seu funcionamento.
 
-O administrador cadastra e configura dispositivos. Usuários autenticados podem consultar o estado dos ventiladores. Cada ESP32 recebe comandos e configurações por MQTT, informa sua presença, reporta movimento e publica o estado físico do relé.
+O projeto foi desenvolvido para uma disciplina de desenvolvimento de aplicações, com especialidade em IoT, sistemas embarcados e comunicação MQTT.
 
-## Recursos implementados
+## Objetivo
 
-- CRUD de dispositivos com nome único;
-- painel web responsivo em inglês;
-- autenticação JWT com Spring Security;
-- perfis `ADMIN` e `USER`;
-- senhas protegidas com BCrypt;
-- controle de acesso por papel;
-- PostgreSQL com JPA e migrations Flyway;
-- integração MQTT entre Spring Boot e ESP32;
-- monitoramento por heartbeat e marcação automática de dispositivo offline;
-- acionamento manual de ventilador;
-- agenda semanal e desligamento automático por ausência de movimento;
-- persistência da configuração de automação no PostgreSQL e na memória NVS do ESP32;
-- documentação interativa com Swagger/OpenAPI.
-
-Para uma visão técnica detalhada da arquitetura, consulte [docs/project-current-state.md](docs/project-current-state.md).
+Um administrador cadastra os dispositivos e configura seu funcionamento. Usuários autenticados consultam o estado dos ventiladores. Cada ESP32 lê o sensor PIR, aciona o relé, executa a automação local e se comunica com a aplicação central pelo broker MQTT.
 
 ## Arquitetura
 
@@ -37,142 +23,93 @@ Spring Boot application
 Mosquitto broker <----> ESP32 + PIR sensor + relay + fan
 ```
 
-## Requisitos
+O backend usa uma organização MVC. Controllers expõem as rotas, services concentram regras de negócio e a comunicação MQTT, repositories acessam o banco por Spring Data JPA e a view Thymeleaf entrega o painel responsivo.
 
-- Java 21;
-- PostgreSQL 16 ou compatível;
-- Mosquitto MQTT broker;
-- Git;
-- acesso à mesma rede local para o computador que executa o broker e o ESP32;
-- para compilar ou gravar o firmware: PlatformIO com uma placa compatível com `esp32dev`.
+| Camada | Responsabilidade |
+|---|---|
+| Controllers | Rotas HTTP REST e página web. |
+| Services | Regras de negócio, comandos MQTT e processamento de eventos. |
+| Repositories | Persistência e consultas com Spring Data JPA. |
+| Models / Entities | Representação das tabelas `devices` e `app_users`. |
+| DTOs e mappers | Entrada e saída da API sem expor entidades diretamente. |
+| View | Painel web em Thymeleaf com textos em inglês. |
 
-O Maven Wrapper já está no repositório. Não é necessário instalar Maven separadamente.
+## Funcionalidades
 
-## Serviços locais necessários
+- cadastro, consulta, renomeação e remoção de dispositivos;
+- estado online/offline por heartbeat MQTT;
+- leitura de movimento pelo sensor PIR e registro do último evento;
+- acionamento manual do ventilador por relé;
+- agenda semanal e desligamento automático por inatividade;
+- autenticação JWT, senhas protegidas com BCrypt e perfis `ADMIN` e `USER`;
+- autorização: administradores alteram dispositivos e usuários; usuários comuns somente consultam dispositivos;
+- documentação interativa da API com Swagger/OpenAPI.
 
-### PostgreSQL
+## Persistência e migrations
 
-Crie um banco chamado `fancontrol`. O usuário configurado precisa ter permissão para criar e alterar tabelas, pois o Flyway executará as migrations no primeiro início.
+PostgreSQL armazena dispositivos, usuários e configurações de automação. O Flyway controla a estrutura do banco, enquanto o Hibernate somente a valida (`ddl-auto=validate`).
 
-### Mosquitto
+| Migration | Conteúdo |
+|---|---|
+| `V1__create_devices_table.sql` | Cria dispositivos e a restrição de status. |
+| `V2__create_operator_users.sql` | Cria usuários, papéis e nome único sem diferenciar maiúsculas/minúsculas. |
+| `V3__add_device_schedule_and_automation.sql` | Adiciona modo, auto-shutoff e agenda semanal aos dispositivos. |
 
-O broker deve escutar na porta TCP `1883`. Para a demonstração local, o backend pode acessar `tcp://localhost:1883`; o ESP32 deve usar o endereço IP local do computador que hospeda o Mosquitto.
+## API e segurança
 
-Em uma rede local simples, não há TLS nem autenticação MQTT configurados. Essa configuração é adequada para demonstração em rede controlada.
+O projeto possui controllers com responsabilidades distintas:
 
-### Rede local
+| Controller | Responsabilidade |
+|---|---|
+| `WebController` | Entrega o painel em `GET /`. |
+| `AuthController` | Cadastro, login e conta autenticada. |
+| `DeviceController` | CRUD de dispositivos, comandos do ventilador e automação. |
+| `UserController` | Listagem e remoção administrativa de usuários. |
 
-O computador com Spring Boot, PostgreSQL e Mosquitto pode ser o mesmo. O ESP32 precisa se conectar à mesma rede Wi-Fi ou hotspot e alcançar a porta `1883` desse computador.
+No login, Spring Security valida a senha contra o hash BCrypt e emite um JWT assinado com HS256. O navegador envia o token em `Authorization: Bearer <JWT>` nas chamadas protegidas. O backend valida assinatura, expiração e papel do usuário antes de liberar cada ação.
 
-Se o broker estiver no notebook, use o IPv4 local dele no firmware. Exemplo ilustrativo:
+Rotas públicas incluem a página inicial, cadastro, login e documentação Swagger. A leitura de dispositivos aceita `USER` e `ADMIN`; mudanças em dispositivos e usuários exigem `ADMIN`.
 
-```text
-MQTT_SERVER = 192.168.1.XXX
-```
+## Comunicação MQTT
 
-Libere a porta 1883 no firewall local quando necessário. O painel e Swagger usam a porta 8080.
+O backend usa Spring Integration MQTT com QoS 1. O nome do dispositivo faz parte dos tópicos e precisa coincidir no cadastro e no firmware.
 
-## Configuração do backend
-
-1. Copie o arquivo de exemplo:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Edite `.env` e informe as credenciais locais. Exemplo:
-
-   ```properties
-   DB_URL=jdbc:postgresql://localhost:5432/fancontrol
-   DB_USERNAME=postgres
-   DB_PASSWORD=sua-senha-local
-
-   MQTT_BROKER_URL=tcp://localhost:1883
-   MQTT_CLIENT_ID=fancontrol-server
-
-   JWT_SECRET=um-segredo-local-com-pelo-menos-32-caracteres
-   JWT_EXPIRATION_SECONDS=3600
-
-   ADMIN_INITIAL_NAME=admin
-   ADMIN_INITIAL_PASSWORD=uma-senha-local-com-pelo-menos-8-caracteres
-   ```
-
-O `.env` não deve ser enviado ao GitHub. Na primeira inicialização, a aplicação cria o administrador indicado por `ADMIN_INITIAL_NAME` e `ADMIN_INITIAL_PASSWORD`, caso esse nome ainda não exista.
-
-## Execução da aplicação
-
-No diretório do projeto:
-
-```bash
-./mvnw spring-boot:run
-```
-
-No primeiro início em um banco vazio, Flyway executa as migrations automaticamente:
-
-- V1: tabela de dispositivos;
-- V2: tabela de usuários;
-- V3: campos de agendamento e automação.
-
-Depois, acesse:
-
-- Painel: `http://localhost:8080/`
-- Swagger UI: `http://localhost:8080/swagger-ui/index.html`
-- Especificação OpenAPI: `http://localhost:8080/v3/api-docs`
-
-## Configuração e gravação do firmware
-
-O firmware está em `firmware-esp32/` e usa PlatformIO.
-
-1. Abra a pasta `firmware-esp32` no PlatformIO.
-2. Em `src/main.cpp`, substitua os valores censurados de `WIFI_SSID`, `WIFI_PASSWORD` e `MQTT_SERVER` pelos valores da sua rede local.
-3. Confirme que `DEVICE_NAME` corresponde exatamente ao nome cadastrado no painel, por exemplo `garage2`.
-4. Conecte a placa ESP32 e faça o upload pelo PlatformIO.
-5. Abra o monitor serial em 115200 baud para acompanhar Wi-Fi, MQTT, NTP, sensor e relé.
-
-O firmware usa:
-
-- GPIO 13: entrada do sensor PIR;
-- GPIO 12: saída do relé;
-- relé ativo em nível baixo: `LOW` liga e `HIGH` desliga.
-
-Ele sincroniza a hora via NTP para executar a agenda semanal. Portanto, o ESP32 precisa ter acesso à internet ao menos durante a sincronização de horário.
-
-## Protocolo MQTT
-
-O nome do dispositivo participa do tópico e deve ser igual no cadastro e no firmware.
-
-| Direção | Tópico | Exemplo de payload |
+| Direção | Tópico | Função |
 |---|---|---|
-| ESP32 → backend | `fan/{deviceName}/heartbeat` | `ping` |
-| ESP32 → backend | `fan/{deviceName}/motion` | `detected` |
-| ESP32 → backend | `fan/{deviceName}/status` | `online` ou `offline` |
-| ESP32 → backend | `fan/{deviceName}/state` | `true` ou `false` |
-| Backend → ESP32 | `fan/{deviceName}/command` | `{"fan":true}` |
-| Backend → ESP32 | `fan/{deviceName}/config` | JSON de agenda, modo e auto-shutoff |
+| ESP32 para backend | `fan/{deviceName}/heartbeat` | Atualiza presença e marca o dispositivo como online. |
+| ESP32 para backend | `fan/{deviceName}/motion` | Registra movimento detectado pelo PIR. |
+| ESP32 para backend | `fan/{deviceName}/status` | Informa `online` ou `offline`. |
+| ESP32 para backend | `fan/{deviceName}/state` | Informa o estado físico do relé. |
+| Backend para ESP32 | `fan/{deviceName}/command` | Envia comando manual de ligar ou desligar. |
+| Backend para ESP32 | `fan/{deviceName}/config` | Envia agenda, modo e auto-shutoff. |
 
-O tópico de configuração é enviado como mensagem MQTT retida. Isso permite que um ESP32 receba a última configuração depois de se reconectar ao broker.
+O backend marca um dispositivo como `OFFLINE` quando o intervalo desde o último sinal ultrapassa o limite configurado. A configuração é enviada como mensagem retida para que o ESP32 a recupere após uma reconexão.
 
-## Fluxo de demonstração
+## Firmware ESP32
 
-1. Inicie PostgreSQL e Mosquitto.
-2. Configure `.env` e execute o backend.
-3. Faça login no painel com o administrador inicial.
-4. Cadastre um dispositivo com o mesmo nome usado em `DEVICE_NAME` no firmware.
-5. Ligue o ESP32 e confirme que o painel mostra o dispositivo como `ONLINE`.
-6. Envie comandos de ligar e desligar pelo painel ou Swagger.
-7. Gere movimento no sensor PIR e confirme a atualização de `Last Motion`.
-8. Como administrador, configure uma agenda semanal e o auto-shutoff; o ESP32 recebe a configuração no tópico MQTT e a salva na NVS.
-9. Cadastre uma conta comum para demonstrar que ela apenas consulta dispositivos.
+O diretório [`firmware-esp32`](firmware-esp32) contém o projeto PlatformIO para uma placa `esp32dev`.
+
+- GPIO 13: sensor PIR;
+- GPIO 12: relé ativo em nível baixo;
+- sincronização de data e hora por NTP no fuso UTC-3;
+- agenda avaliada localmente a cada segundo;
+- configuração gravada na memória não volátil NVS.
+
+Ao receber uma configuração de agenda, o ESP32 pode continuar executando-a localmente mesmo se o backend ficar temporariamente indisponível. Comandos manuais colocam o dispositivo em modo `MANUAL_ON` ou `MANUAL_OFF`; a automação usa o modo `SCHEDULED`.
+
+## Interface e documentação
+
+O painel é responsivo e mantém seus textos em inglês. Sem login, apresenta cadastro e autenticação. Uma conta `USER` visualiza os dispositivos; uma conta `ADMIN` também gerencia dispositivos, automação e usuários.
+
+A documentação Swagger/OpenAPI declara as rotas, modelos, respostas e autenticação Bearer JWT. Ela fica disponível em `/swagger-ui/index.html` quando a aplicação está em execução.
 
 ## Testes
 
-Execute a suíte Java com:
+A suíte Java cobre regras de dispositivos, respostas HTTP, JWT, permissões, Flyway e a especificação OpenAPI. O firmware também foi compilado com PlatformIO para validar a configuração da placa e das bibliotecas.
 
-```bash
-./mvnw test
-```
+## Executar e demonstrar
 
-Ela cobre regras de dispositivos, respostas HTTP, JWT, permissões, Flyway e documentação OpenAPI. A migration V3 será aplicada ao banco configurado se ainda não estiver presente.
+Consulte [DEMONSTRATION.md](DEMONSTRATION.md) para requisitos, configuração local, gravação do firmware e roteiro de demonstração.
 
 ## Licença
 
